@@ -1,0 +1,12 @@
+{
+    "name": "AerisCalendar",
+    "version": "1.0.0",
+    "description": "A simple responsive web app",
+    "main": "index.html",
+    "scripts": {
+      "start": "python -m http.server"
+    },
+    "author": "GavinEgger",
+    "license": "MIT"
+  }
+  
