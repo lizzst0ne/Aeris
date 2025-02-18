@@ -50,6 +50,7 @@ void setup() {
 
   // set advertised local name and service UUID:
   BLE.setLocalName("urmom");
+  BLE.setDeviceName("urmom");
   BLE.setAdvertisedService(ledService);
 
   // add the characteristic to the service
@@ -65,10 +66,10 @@ void setup() {
   BLE.advertise();
 
   Serial.println("BLE LED Peripheral");
-    display.clearDisplay();
-    display.setCursor(0,0);
-    display.println(F("miau"));
-    display.display();
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println(F("miau"));
+  display.display();
 }
 
 
@@ -76,7 +77,6 @@ void setup() {
 void loop() {
   // listen for Bluetooth® Low Energy peripherals to connect:
   BLEDevice central = BLE.central();
-
 
   // if a central is connected to peripheral:
   if (central) {
@@ -98,7 +98,7 @@ void loop() {
             display.display();
             Serial.println("LED on");
             digitalWrite(ledPin, LOW); // changed from HIGH to LOW       
-          } else {                       
+          } else {                      
             display.clearDisplay();
             display.setCursor(0,0);
             display.println(F("LED off"));  
