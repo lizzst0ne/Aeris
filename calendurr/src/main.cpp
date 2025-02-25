@@ -11,21 +11,41 @@
 #define OLED_RESET -1
 #define SCREEN_ADDRESS 0x3D
 
-#define TOP_R 14
-#define TOP_L 15
-#define SENSE 16
-#define BOTTOM_L 17
-#define BOTTOM_R 18
+#define BUTTON 25
+
+#define TOP_R 11
+#define TOP_L 6
+#define SENSE 14
+#define BOTTOM_L 5
+#define BOTTOM_R 0
+
+#define X_MAX 2150
+#define X_MIN 1490
+#define Y_MAX 2115
+#define Y_MIN 1400
+
+#define X_LIMIT 330 //660
+#define Y_LIMIT 357 //715
 
 #define SCALE_FACTOR 10
 
 unsigned short int x_raw;
 unsigned short int y_raw;
 
-unsigned short int x_pos;
-unsigned short int y_pos;
+int x_pos;
+int y_pos;
+
+int last_x;
+int last_y;
+
+int delX;
+int delY;
+
+unsigned char coordsArray[X_LIMIT][Y_LIMIT] = {0};
 
 void read();
+
+void button();
 
 // Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
@@ -56,7 +76,13 @@ void setup() {
   // set sense pin to output
   pinMode(SENSE, INPUT);
 
+  pinMode(BUTTON, INPUT);
+
   analogReadResolution(12);
+  analogReference(AR_INTERNAL);
+
+  last_x = 0;
+  last_y = 0;
 
 
   // if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -109,6 +135,18 @@ void setup() {
 void loop() {
 
   read();
+
+  if(!digitalRead(BUTTON)){
+    button();
+  }
+
+  char test[40];
+
+  sprintf(test, "X:%d  Y:%d", x_pos, y_pos);
+
+  Serial.println(test);
+  delay(10);
+
   // // listen for Bluetooth® Low Energy peripherals to connect:
   // BLEDevice central = BLE.central();
 
@@ -168,14 +206,39 @@ void read(){
   // set up pins to read in Y coordinate
   digitalWrite(TOP_R, HIGH);
   digitalWrite(TOP_L, LOW);
-  digitalWrite(BOTTOM_L, LOW);
-  digitalWrite(BOTTOM_R, HIGH);
+  digitalWrite(BOTTOM_L, HIGH);
+  digitalWrite(BOTTOM_R, LOW);
 
   delay(1);
   // read in y position
   y_raw = analogRead(SENSE);
 
-  float x = x_raw * 3.3 / 4096;
+  x_pos = (x_raw - X_MIN)/2;
+  y_pos = (y_raw - Y_MIN)/2;
 
-  Serial.println(x);
+  delX = x_pos - last_x;
+  delY = y_pos - last_y;
+
+  if(delX > -6 && delX < 6 && delY > -6 && delY < 6){
+    coordsArray[x_pos][y_pos] = 1;
+  }
+
+
+  last_x = x_pos;
+  last_y = y_pos;
+
+  //Serial.println(x);
+}
+
+void button(){
+
+  for(int i = Y_LIMIT- 1; i >= 0; i--){
+      //j is x coord
+      for(int j = X_LIMIT - 1; j >= 0; j--){
+        char c = coordsArray[j][i];
+        Serial.printf("%d", c);
+      }
+      Serial.print("\n");
+  }
+
 }
