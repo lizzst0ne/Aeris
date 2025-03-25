@@ -61,7 +61,7 @@ BLEBas blebas;
 /*-----------------  SETUP FCN   -------------------*/
 void setup() {
   Serial.begin(115200);
-  while (!Serial);
+  //while (!Serial);
 
 
 //SENSOR SETUP
