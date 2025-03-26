@@ -132,20 +132,25 @@ void loop() {
 
   if(!digitalRead(BUTTON)){
     //button();
-    uint8_t buf[] = {"hi"};
+    //uint8_t buf[] = {"hi"};
+    uint8_t buf[] = {"1"};
     bleuart.write(buf, sizeof(buf));
     display.clearDisplay();
     display.setCursor(0,0);
-    display.println("hi :)");
+    //display.println("hi :)");
+    display.println("Sent: 1");
     display.display();
   }
 
   if(!digitalRead(BUTTON2)){
-    uint8_t buf[] = {"your mother"};
+    //uint8_t buf[] = {"your mother"};
+    uint8_t buf[] = {"0"};
     bleuart.write(buf, sizeof(buf));
     display.clearDisplay();
-    display.setCursor(20,0);
-    display.println("your mother");
+    //display.setCursor(20,0);
+    //display.println("your mother");
+    display.setCursor(0,0);
+    display.println("Sent: 0");
     display.display();
   }
 

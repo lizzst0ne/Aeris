@@ -3,18 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Mobile Web App</title>
+  <title>Aeris Calendar App</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
     <h1>Aeris Calendar App</h1>
-    <p>Simple Web App to Test Bluetooth Functionality</p>
-    <button id="connectButton">Connect to Bluetooth Device</button>
-    <p id="message"></p>
+    <p id="status">Status: Not Connected</p>
+    
+    <div class="connection-controls">
+      <button id="connectButton">Connect to Bluetooth Device</button>
+      <p id="message"></p>
+    </div>
+    
+    <div class="data-display">
+      <h2>Received Data</h2>
+      <div class="data-box">
+        <p>Latest data: <span id="receivedData">None yet</span></p>
+        <p id="bitStatus">Bit Status: Waiting for data...</p>
+      </div>
+    </div>
+    
+    <div class="data-history">
+      <h2>Data History</h2>
+      <ul id="dataHistory"></ul>
+    </div>
+    
+    <div class="send-controls">
+      <h2>Send Data</h2>
+      <input type="text" id="dataToSend" placeholder="Enter data to send...">
+      <button id="sendButton" disabled>Send</button>
+    </div>
   </div>
 
   <script src="app.js"></script>
-  <script src="bluetooth.js"></script>  <!-- New Bluetooth script -->
+  <script src="bluetooth.js"></script>
 </body>
 </html>
