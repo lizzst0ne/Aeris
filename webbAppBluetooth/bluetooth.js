@@ -45,7 +45,7 @@ async function connectToDevice() {
     txCharacteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
     
     document.getElementById('message').textContent = `Connected to ${device.name}`;
-    document.getElementById('status').textContent = 'Status: Connected';
+    document.getElementById('status').textContent = 'Status: Connected YAY';
     document.getElementById('status').className = 'connected';
     
     // Enable the send button if we want to send data
@@ -63,11 +63,13 @@ async function connectToDevice() {
 }
 
 function handleDataReceived(event) {
+  
   const value = event.target.value;
   // Decode the received value (could be text or binary)
   const receivedData = decoder.decode(value);
   
   console.log('Received data:', receivedData);
+  document.getElementById('status').textContent = 'Status: DATA RECIEVED';
   
   // Update the UI with the received data
   document.getElementById('receivedData').textContent = receivedData;
