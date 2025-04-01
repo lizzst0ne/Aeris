@@ -11,8 +11,21 @@
 #define OLED_RESET -1
 #define SCREEN_ADDRESS 0x3D
 
-#define BUTTON 25
-#define BUTTON2 26
+#define SEND_BUTTON 25
+#define BLE_BUTTON 26
+
+#define DAY_A 9
+#define DAY_B 10
+int dayB_status;
+#define MONTH_A 12
+#define MONTH_B 13
+int monthB_status;
+int day;
+int month;
+String d;
+String m;
+
+#define months {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
 
 #define TOP_R 11
 #define TOP_L 6
@@ -57,6 +70,8 @@ BLEDis bledis;
 BLEUart bleuart;
 BLEBas blebas;
 
+void dayChange();
+void monthChange();
 
 /*-----------------  SETUP FCN   -------------------*/
 void setup() {
@@ -77,8 +92,21 @@ void setup() {
   // // set sense pin to output
   // pinMode(SENSE, INPUT);
 
-  pinMode(BUTTON, INPUT);
-  pinMode(BUTTON2, INPUT);
+  pinMode(SEND_BUTTON, INPUT);
+  pinMode(BLE_BUTTON, INPUT);
+
+  pinMode(DAY_A, INPUT);
+  pinMode(DAY_B, INPUT);
+  pinMode(MONTH_A, INPUT);
+  pinMode(MONTH_B, INPUT);
+
+  attachInterrupt(DAY_A, dayChange, RISING);
+  attachInterrupt(MONTH_A, monthChange, RISING);
+
+  dayB_status = digitalRead(DAY_B);
+  monthB_status = digitalRead(MONTH_B);
+  day = 1;
+  month = 1;
 
   // analogReadResolution(12);
   // analogReference(AR_INTERNAL);
@@ -130,7 +158,7 @@ void loop() {
 //SENSOR ACTIONS TO BE UNCOMMENTED LATER
   // read();
 
-  if(!digitalRead(BUTTON)){
+  if(!digitalRead(SEND_BUTTON)){
     //button();
     //uint8_t buf[] = {"hi"};
     uint8_t buf[] = {"1"};
@@ -140,12 +168,13 @@ void loop() {
     //display.println("hi :)");
     display.println("Sent: 1");
     display.display();
+    Serial.println("1");
   }
 
-  if(!digitalRead(BUTTON2)){
+  if(!digitalRead(BLE_BUTTON)){
     //timer to keep track of how long button has been held
     int timeStart = millis();
-    while(!digitalRead(BUTTON2)){
+    while(!digitalRead(BLE_BUTTON)){
       int timeEnd = millis();
 
       int timeHeld = timeEnd - timeStart;
@@ -290,3 +319,62 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason){
   Serial.println(reason, HEX);
 }
 
+void dayChange(){
+  dayB_status = digitalRead(DAY_B);
+
+  if(dayB_status == 1){
+    day++;
+  }
+  else if(dayB_status == 0){
+    day--;
+  }
+
+  if(month == 2){
+    if(day <= 0){
+      day = 28;
+    }
+    else if(day > 28){
+      day = 1;
+    }
+  }
+  else if(month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12){
+    if(day <= 0){
+      day = 31;
+    }
+    else if(day > 31){
+      day = 1;
+    }
+  }
+  else{
+    if(day <= 0){
+      day = 30;
+    }
+    else if(day > 30){
+      day = 1;
+    }
+  }
+  Serial.println(day);
+}
+
+void monthChange(){
+  monthB_status = digitalRead(MONTH_B);
+
+  if(monthB_status == 1){
+    month++;
+  }
+  else if(monthB_status == 0){
+    month--;
+  }
+  if(month >= 13){
+    month = 1;
+  }
+  if(month <= 0){
+    month = 12;
+  }
+  Serial.println(month);
+}
+
+void whatsTheDate(){
+  int i = month - 1;
+  m = (String[])months[i];
+}
