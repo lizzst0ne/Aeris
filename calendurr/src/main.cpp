@@ -143,15 +143,33 @@ void loop() {
   }
 
   if(!digitalRead(BUTTON2)){
-    //uint8_t buf[] = {"your mother"};
-    uint8_t buf[] = {"0"};
-    bleuart.write(buf, sizeof(buf));
-    display.clearDisplay();
-    //display.setCursor(20,0);
-    //display.println("your mother");
-    display.setCursor(0,0);
-    display.println("Sent: 0");
-    display.display();
+    //timer to keep track of how long button has been held
+    int timeStart = millis();
+    while(!digitalRead(BUTTON2)){
+      int timeEnd = millis();
+
+      int timeHeld = timeEnd - timeStart;
+      
+      //when the timer exceeds 2.2 seconds or something the ble will be disconnected and 
+      //automatically start searching for another device to pair with
+      if(timeHeld >= 2200){
+     
+        Bluefruit.disconnect(Bluefruit.connHandle());
+        break;
+      }
+    }
+
+    
+
+    // //uint8_t buf[] = {"your mother"};
+    // uint8_t buf[] = {"0"};
+    // bleuart.write(buf, sizeof(buf));
+    // display.clearDisplay();
+    // //display.setCursor(20,0);
+    // //display.println("your mother");
+    // display.setCursor(0,0);
+    // display.println("Sent: 0");
+    // display.display();
   }
 
   // char test[40];
