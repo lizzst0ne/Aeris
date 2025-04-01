@@ -5,6 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aeris Calendar App</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* Add debug style */
+    #debug-section {
+      background-color: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      margin-top: 20px;
+      padding: 10px;
+    }
+    
+    #debug-log {
+      max-height: 200px;
+      overflow-y: auto;
+      background: #333;
+      color: #fff;
+      font-family: monospace;
+      font-size: 12px;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 4px;
+    }
+    
+    .debug-info {
+      color: #8cf;
+    }
+    
+    .debug-success {
+      color: #8f8;
+    }
+    
+    .debug-error {
+      color: #f88;
+    }
+    
+    .debug-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .debug-button {
+      background-color: #555;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -34,8 +83,84 @@
       <input type="text" id="dataToSend" placeholder="Enter data to send...">
       <button id="sendButton" disabled>Send</button>
     </div>
+    
+    <!-- Debug section -->
+    <div id="debug-section">
+      <h2>Debugging Tools</h2>
+      
+      <div class="debug-controls">
+        <button class="debug-button" id="debugSimulate1">Simulate '1' Received</button>
+        <button class="debug-button" id="debugSimulate0">Simulate '0' Received</button>
+        <button class="debug-button" id="debugClearLog">Clear Log</button>
+      </div>
+      
+      <div id="debug-log"></div>
+    </div>
   </div>
 
+  <script>
+    // Simple debug log function - call before loading other scripts
+    window.debugLog = function(message, type = 'info') {
+      const logElement = document.getElementById('debug-log');
+      if (!logElement) return; // Return if element isn't available yet
+      
+      const entry = document.createElement('div');
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      entry.className = `debug-${type}`;
+      logElement.appendChild(entry);
+      logElement.scrollTop = logElement.scrollHeight;
+    };
+    
+    // Override console methods to display in visual log
+    const originalConsole = {
+      log: console.log,
+      error: console.error,
+      warn: console.warn
+    };
+    
+    console.log = function(...args) {
+      originalConsole.log.apply(console, args);
+      window.debugLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'info');
+    };
+    
+    console.error = function(...args) {
+      originalConsole.error.apply(console, args);
+      window.debugLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'error');
+    };
+    
+    console.warn = function(...args) {
+      originalConsole.warn.apply(console, args);
+      window.debugLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'info');
+    };
+    
+    // Set up debug controls when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Add initialization log
+      console.log('Page loaded, scripts initializing...');
+      
+      // Setup debug buttons
+      document.getElementById('debugClearLog').addEventListener('click', function() {
+        document.getElementById('debug-log').innerHTML = '';
+      });
+      
+      document.getElementById('debugSimulate1').addEventListener('click', function() {
+        console.log('Simulating received data: "1"');
+        // This will be handled in bluetooth.js
+        if (window.simulateBluetoothData) {
+          window.simulateBluetoothData('1');
+        }
+      });
+      
+      document.getElementById('debugSimulate0').addEventListener('click', function() {
+        console.log('Simulating received data: "0"');
+        // This will be handled in bluetooth.js
+        if (window.simulateBluetoothData) {
+          window.simulateBluetoothData('0');
+        }
+      });
+    });
+  </script>
+  
   <script src="app.js"></script>
   <script src="bluetooth.js"></script>
 </body>
