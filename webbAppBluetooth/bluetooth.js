@@ -12,6 +12,8 @@ let decoder = new TextDecoder();
 
 async function connectToDevice() {
   try {
+    console.log('Starting Bluetooth connection attempt...');
+    
     // Request a Bluetooth device with the UART service UUID
     const device = await navigator.bluetooth.requestDevice({
       filters: [
@@ -25,24 +27,38 @@ async function connectToDevice() {
     currentDevice = device;
     
     document.getElementById('message').textContent = 'Connecting to ' + device.name + '...';
+    console.log('Selected device:', device.name);
     
     // Connect to the device's GATT server
     const server = await device.gatt.connect();
+    console.log('Connected to GATT server');
     
     // Get the primary service and characteristics
     const service = await server.getPrimaryService(UART_SERVICE_UUID);
+    console.log('Got UART service');
     
     // Get TX characteristic (the one we'll read from)
     txCharacteristic = await service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
+    console.log('Got TX characteristic');
     
     // Get RX characteristic (the one we'll write to if needed)
     rxCharacteristic = await service.getCharacteristic(UART_RX_CHARACTERISTIC_UUID);
+    console.log('Got RX characteristic');
+    
+    // Check if notifications are supported
+    if (txCharacteristic.properties.notify) {
+      console.log('Notifications are supported');
+    } else {
+      console.warn('Notifications are NOT supported on this characteristic');
+    }
     
     // Enable notifications to receive data from the device
     await txCharacteristic.startNotifications();
+    console.log('Started notifications');
     
     // Add event listener for when data is received
     txCharacteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+    console.log('Added event listener for data reception');
     
     document.getElementById('message').textContent = `Connected to ${device.name}`;
     document.getElementById('status').textContent = 'Status: Connected YAY';
@@ -53,6 +69,7 @@ async function connectToDevice() {
     
     // Handle disconnection
     device.addEventListener('gattserverdisconnected', handleDisconnection);
+    console.log('Connection setup complete, waiting for data...');
     
   } catch (error) {
     console.error('Error:', error);
@@ -63,13 +80,14 @@ async function connectToDevice() {
 }
 
 function handleDataReceived(event) {
+  console.log('Data received event triggered!');
   
   const value = event.target.value;
   // Decode the received value (could be text or binary)
   const receivedData = decoder.decode(value);
   
   console.log('Received data:', receivedData);
-  document.getElementById('status').textContent = 'Status: DATA RECIEVED';
+  document.getElementById('status').textContent = 'Status: DATA RECEIVED';
   
   // Update the UI with the received data
   document.getElementById('receivedData').textContent = receivedData;
@@ -96,7 +114,7 @@ function handleDataReceived(event) {
   }
 }
 
-function handleDisconnection() {
+function handleDisconnection(event) {
   console.log('Device disconnected');
   document.getElementById('message').textContent = 'Device disconnected.';
   document.getElementById('status').textContent = 'Status: Disconnected';
@@ -135,4 +153,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const dataToSend = document.getElementById('dataToSend').value;
     sendData(dataToSend);
   });
+
+  // Add debug button to test if we can manually trigger the display update
+  const debugButton = document.createElement('button');
+  debugButton.textContent = 'Debug: Simulate Data (1)';
+  debugButton.style.backgroundColor = '#ff9800';
+  debugButton.addEventListener('click', function() {
+    // Create a mock event to simulate receiving a "1"
+    const mockEvent = {
+      target: {
+        value: new TextEncoder().encode("1")
+      }
+    };
+    handleDataReceived(mockEvent);
+  });
+  
+  document.querySelector('.connection-controls').appendChild(debugButton);
 });
