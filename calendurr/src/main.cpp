@@ -4,6 +4,10 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <string>
+#include <vector>
+#include <stdlib.h>
+#include <Arduino.h>
+
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -55,10 +59,15 @@ int last_y;
 int delX;
 int delY;
 
+std::vector<std::string> coordinates = {};
+
 unsigned char coordsArray[X_LIMIT][Y_LIMIT] = {0};
 
+unsigned int coordz[20][2];
+int numEntries;
+
 void read();
-void button();
+void sendData();
 
 void connect_callback(uint16_t conn_handle);
 void disconnect_callback(uint16_t conn_handle, uint8_t reason);
@@ -72,6 +81,7 @@ BLEBas blebas;
 
 void dayChange();
 void monthChange();
+void whatsTheDate();
 
 /*-----------------  SETUP FCN   -------------------*/
 void setup() {
@@ -107,6 +117,8 @@ void setup() {
   monthB_status = digitalRead(MONTH_B);
   day = 1;
   month = 1;
+
+  numEntries = 1;
 
   // analogReadResolution(12);
   // analogReference(AR_INTERNAL);
@@ -150,6 +162,9 @@ void setup() {
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0,0);
   
+
+  coordz[0][0] = 2178;
+  coordz[0][1] = 6969;
 }
 
 
@@ -159,16 +174,18 @@ void loop() {
   // read();
 
   if(!digitalRead(SEND_BUTTON)){
-    //button();
-    //uint8_t buf[] = {"hi"};
-    uint8_t buf[] = {"1"};
-    bleuart.write(buf, sizeof(buf));
-    display.clearDisplay();
-    display.setCursor(0,0);
-    //display.println("hi :)");
-    display.println("Sent: 1");
-    display.display();
-    Serial.println("1");
+    //coordinates.push_back("hi urmom");
+
+    sendData();
+    // //uint8_t buf[] = {"hi"};
+    // uint8_t buf[] = {"1"};
+    // bleuart.write(buf, sizeof(buf));
+    // display.clearDisplay();
+    // display.setCursor(0,0);
+    // //display.println("hi :)");
+    // display.println("Sent: 1");
+    // display.display();
+    // Serial.println("1");
   }
 
   if(!digitalRead(BLE_BUTTON)){
@@ -229,7 +246,7 @@ void loop() {
 
 void read(){
 
-    // set up pins to read in X coordinate
+  // set up pins to read in X coordinate
   digitalWrite(TOP_R, HIGH);
   digitalWrite(TOP_L, HIGH);
   digitalWrite(BOTTOM_L, LOW);
@@ -256,9 +273,18 @@ void read(){
   delY = y_pos - last_y;
 
   if(delX > -6 && delX < 6 && delY > -6 && delY < 6){
-    coordsArray[x_pos][y_pos] = 1;
-  }
+    
+    //std::string coords = std::to_string(x_pos) + ' ' + std::to_string(y_pos);
 
+    if(coordsArray[x_pos][y_pos] == 0){
+      coordsArray[x_pos][y_pos] = 1;
+      coordz[numEntries][0] = x_pos;
+      coordz[numEntries][1] = y_pos;
+
+      numEntries++;
+      //coordinates.push_back(coords);
+    }
+  }
 
   last_x = x_pos;
   last_y = y_pos;
@@ -266,16 +292,35 @@ void read(){
   //Serial.println(x);
 }
 
-void button(){
+void sendData(){
 
-  for(int i = Y_LIMIT- 1; i >= 0; i--){
-      //j is x coord
-      for(int j = X_LIMIT - 1; j >= 0; j--){
-        char c = coordsArray[j][i];
-        Serial.printf("%d", c);
-      }
-      Serial.print("\n");
+  // for(int i = Y_LIMIT- 1; i >= 0; i--){
+  //     //j is x coord
+  //     for(int j = X_LIMIT - 1; j >= 0; j--){
+  //       char c = coordsArray[j][i];
+  //       Serial.printf("%d", c);
+  //     }
+  //     Serial.print("\n");
+  // }
+
+  uint8_t front[] = {"START"};
+  bleuart.write(front, sizeof(front));
+
+  for(int i = 0; i < numEntries; i++){
+    //unsigned char coord[coordinates.at(i).length()];
+    int size = 9;
+
+    char coord[size];
+    sprintf(coord, "%d %d", coordz[i][0], coordz[i][1]);
+
+    //uint8_t coord_buf[] = {coordsArray[0][4]}; 
+    bleuart.write(coord, sizeof(coord));
+    
+    //Serial.println(coord);
   }
+
+  uint8_t end[] = {"STOP"};
+  bleuart.write(end, sizeof(end));
 
 }
 
@@ -354,6 +399,7 @@ void dayChange(){
     }
   }
   Serial.println(day);
+  whatsTheDate();
 }
 
 void monthChange(){
@@ -372,9 +418,20 @@ void monthChange(){
     month = 12;
   }
   Serial.println(month);
+  whatsTheDate();
 }
 
 void whatsTheDate(){
   int i = month - 1;
   m = (String[])months[i];
+
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.print("Month: ");
+  display.println(m);
+
+  display.setCursor(0,20);
+  display.print("Day: ");
+  display.println(day);
+  display.display();
 }
