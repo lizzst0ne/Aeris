@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <Arduino.h>
 
+#define VBATPIN A6
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -63,7 +64,7 @@ std::vector<std::string> coordinates = {};
 
 unsigned char coordsArray[X_LIMIT][Y_LIMIT] = {0};
 
-unsigned int coordz[20][2];
+unsigned int coordz[1][2];
 int numEntries;
 
 void read();
@@ -79,6 +80,8 @@ BLEDis bledis;
 BLEUart bleuart;
 BLEBas blebas;
 
+boolean isConnected;
+
 void dayChange();
 void monthChange();
 void whatsTheDate();
@@ -91,16 +94,16 @@ void setup() {
 
 //SENSOR SETUP
   // set top and bottom pins to output, and initialize to low
-  // pinMode(TOP_R, OUTPUT);
-  // pinMode(TOP_L, OUTPUT);
-  // pinMode(BOTTOM_L, OUTPUT);
-  // pinMode(BOTTOM_R, OUTPUT);
-  // digitalWrite(TOP_R, LOW);
-  // digitalWrite(TOP_L, LOW);
-  // digitalWrite(BOTTOM_L, LOW);
-  // digitalWrite(BOTTOM_R, LOW);
-  // // set sense pin to output
-  // pinMode(SENSE, INPUT);
+  pinMode(TOP_R, OUTPUT);
+  pinMode(TOP_L, OUTPUT);
+  pinMode(BOTTOM_L, OUTPUT);
+  pinMode(BOTTOM_R, OUTPUT);
+  digitalWrite(TOP_R, LOW);
+  digitalWrite(TOP_L, LOW);
+  digitalWrite(BOTTOM_L, LOW);
+  digitalWrite(BOTTOM_R, LOW);
+  // set sense pin to output
+  pinMode(SENSE, INPUT);
 
   pinMode(SEND_BUTTON, INPUT);
   pinMode(BLE_BUTTON, INPUT);
@@ -118,13 +121,13 @@ void setup() {
   day = 1;
   month = 1;
 
-  numEntries = 1;
+  numEntries = 0;
 
-  // analogReadResolution(12);
-  // analogReference(AR_INTERNAL);
+  analogReadResolution(12);
+  analogReference(AR_INTERNAL);
 
-  // last_x = 0;
-  // last_y = 0;
+  last_x = 0;
+  last_y = 0;
 //END SENSOR SETUP
 
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -132,8 +135,41 @@ void setup() {
     for(;;); // Don't proceed, loop forever
   }
 
-
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
   
+  isConnected = false;
+
+
+  int i = month - 1;
+  m = (String[])months[i];
+
+  display.clearDisplay();
+  display.setCursor(5,5);
+  display.print("Month: ");
+  display.println(m);
+
+  display.setCursor(5,15);
+  display.print("Day: ");
+  display.println(day);
+  
+  display.setCursor(5, 40);
+  display.println("BLE: Not Connected");
+  
+  float measuredvbat = analogRead(VBATPIN);
+  measuredvbat *= 2;    // we divided by 2, so multiply back
+  measuredvbat *= 3.6;  // Multiply by 3.6V, our reference voltage
+  measuredvbat /= 1024; // convert to voltage
+  //Serial.print("VBat: " ); Serial.println(measuredvbat);
+  display.setCursor(5, 50);
+  display.print("Battery: ");
+  display.println(measuredvbat);
+  
+  
+  display.display();
+
+
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
   Bluefruit.setTxPower(4);
@@ -157,21 +193,24 @@ void setup() {
 
   startAdv();
 
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0,0);
   
 
-  coordz[0][0] = 2178;
-  coordz[0][1] = 6969;
+  
+
+  //while(!Bluefruit.connected());
+
+  
+  // whatsTheDate();
+
+  uint8_t front[] = {"START"};
+  bleuart.write(front, sizeof(front));
+
 }
 
 
 /*-----------------  MAIN LOOP   -------------------*/
 void loop() {
 //SENSOR ACTIONS TO BE UNCOMMENTED LATER
-  // read();
 
   if(!digitalRead(SEND_BUTTON)){
     //coordinates.push_back("hi urmom");
@@ -190,23 +229,25 @@ void loop() {
 
   if(!digitalRead(BLE_BUTTON)){
     //timer to keep track of how long button has been held
-    int timeStart = millis();
-    while(!digitalRead(BLE_BUTTON)){
-      int timeEnd = millis();
+    // int timeStart = millis();
+    // while(!digitalRead(BLE_BUTTON)){
+    //   int timeEnd = millis();
 
-      int timeHeld = timeEnd - timeStart;
+    //   int timeHeld = timeEnd - timeStart;
       
-      //when the timer exceeds 2.2 seconds or something the ble will be disconnected and 
-      //automatically start searching for another device to pair with
-      if(timeHeld >= 2200){
+    //   //when the timer exceeds 2.2 seconds or something the ble will be disconnected and 
+    //   //automatically start searching for another device to pair with
+    //   if(timeHeld >= 2200){
      
-        Bluefruit.disconnect(Bluefruit.connHandle());
-        break;
-      }
-    }
+    //     Bluefruit.disconnect(Bluefruit.connHandle());
+    //     break;
+    //   }
+    // }
+
+    //UNCOMMENT ABOVE
 
     
-
+    Serial.println("aa");
     // //uint8_t buf[] = {"your mother"};
     // uint8_t buf[] = {"0"};
     // bleuart.write(buf, sizeof(buf));
@@ -223,7 +264,7 @@ void loop() {
   // sprintf(test, "X:%d  Y:%d", x_pos, y_pos);
 
   // Serial.println(test);
-  // delay(10);
+  
 //END SENSOR ACTIONS
 
   while(Serial.available()){
@@ -240,18 +281,91 @@ void loop() {
     Serial.write(ch);
   }
 
+  if(isConnected){
 
+    //////////////////////////////////////////////////
+    // set up pins to read in X coordinate
+    digitalWrite(TOP_R, HIGH);
+    digitalWrite(TOP_L, HIGH);
+    digitalWrite(BOTTOM_L, LOW);
+    digitalWrite(BOTTOM_R, LOW);
+    
+    delay(1);
+    // read in x position
+    x_raw = analogRead(SENSE);
+
+    // set up pins to read in Y coordinate
+    digitalWrite(TOP_R, HIGH);
+    digitalWrite(TOP_L, LOW);
+    digitalWrite(BOTTOM_L, HIGH);
+    digitalWrite(BOTTOM_R, LOW);
+
+    delay(1);
+    // read in y position
+    y_raw = analogRead(SENSE);
+
+    x_pos = (x_raw - X_MIN)/5;
+    y_pos = (y_raw - Y_MIN)/5;
+
+    delX = x_pos - last_x;
+    delY = y_pos - last_y;
+
+    if(delX > -1 && delX < 1 && delY > -1 && delY < 1){
+
+      if(x_pos != (signed int)coordz[0][0] && y_pos != (signed int)coordz[0][1]){
+        //coordsArray[x_pos][y_pos] = 1;
+        coordz[0][0] = x_pos;
+        coordz[0][1] = y_pos;
+
+        numEntries++;
+
+        int size = 9;
+
+        // Serial.print(delX);
+        // Serial.print(" ");
+        // Serial.println(delY);
+
+        // char coord[size];
+        // sprintf(coord, "[%d,%d],", coordz[0][0], coordz[0][1]);
+        // Serial.println(coord);
+        // bleuart.write(coord, sizeof(coord));
+      }
+    }
+
+    // Serial.print(x_raw);
+    // Serial.print(" ");
+    // Serial.println(y_raw);
+
+    // char coord[9];
+    // sprintf(coord, "[%d,%d],", x_raw, y_raw);
+    // Serial.println(coord);
+
+    last_x = x_pos;
+    last_y = y_pos;
+
+    
+
+  }
+
+  
+  
+
+/////////////////////////////////////////
+
+  //read();
+  delay(10);
+  whatsTheDate();
   
 }
 
 void read(){
-
+  Serial.println("READ");
   // set up pins to read in X coordinate
   digitalWrite(TOP_R, HIGH);
   digitalWrite(TOP_L, HIGH);
   digitalWrite(BOTTOM_L, LOW);
   digitalWrite(BOTTOM_R, LOW);
-
+  
   delay(1);
   // read in x position
   x_raw = analogRead(SENSE);
@@ -294,6 +408,7 @@ void read(){
 
 void sendData(){
 
+  //prints out the array in 1's and 0's
   // for(int i = Y_LIMIT- 1; i >= 0; i--){
   //     //j is x coord
   //     for(int j = X_LIMIT - 1; j >= 0; j--){
@@ -303,22 +418,24 @@ void sendData(){
   //     Serial.print("\n");
   // }
 
-  uint8_t front[] = {"START"};
-  bleuart.write(front, sizeof(front));
+  //UNCOMMENT LATER
+  // uint8_t front[] = {"START"};
+  // bleuart.write(front, sizeof(front));
 
-  for(int i = 0; i < numEntries; i++){
-    //unsigned char coord[coordinates.at(i).length()];
-    int size = 9;
+  // for(int i = 0; i < numEntries; i++){
+  //   int size = 9;
 
-    char coord[size];
-    sprintf(coord, "%d %d", coordz[i][0], coordz[i][1]);
+  //   char coord[size];
+  //   sprintf(coord, "[%d,%d],", coordz[i][0], coordz[i][1]);
 
-    //uint8_t coord_buf[] = {coordsArray[0][4]}; 
-    bleuart.write(coord, sizeof(coord));
+  //   bleuart.write(coord, sizeof(coord));
     
-    //Serial.println(coord);
-  }
+    // Serial.print("{");
+    // Serial.println(coord);
+  // }
+  // Serial.println("}");
 
+  //UNCOMMENT LATER
   uint8_t end[] = {"STOP"};
   bleuart.write(end, sizeof(end));
 
@@ -349,15 +466,19 @@ void connect_callback(uint16_t conn_handle){
   Serial.print("connected to ");
   Serial.println(central_name);
 
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.println("Bluetooth Connected");
-  display.display();
+  isConnected = true;
+  // display.clearDisplay();
+  // display.setCursor(0,0);
+  // display.println("Bluetooth Connected");
+  // display.display();
 }
 
 void disconnect_callback(uint16_t conn_handle, uint8_t reason){
   (void) conn_handle;
   (void) reason;
+
+  isConnected = false;
+  whatsTheDate();
 
   Serial.println();
   Serial.print("disconnected, reason 0x");
@@ -414,9 +535,10 @@ void monthChange(){
   if(month >= 13){
     month = 1;
   }
-  if(month <= 0){
+  else if(month <= 0){
     month = 12;
   }
+  
   Serial.println(month);
   whatsTheDate();
 }
@@ -426,12 +548,33 @@ void whatsTheDate(){
   m = (String[])months[i];
 
   display.clearDisplay();
-  display.setCursor(0,0);
+  display.setCursor(5,5);
   display.print("Month: ");
   display.println(m);
 
-  display.setCursor(0,20);
+  display.setCursor(5,15);
   display.print("Day: ");
   display.println(day);
+  
+
+  if(isConnected){
+    display.setCursor(5, 40);
+    display.println("BLE: Connected");
+  }
+  else{
+    display.setCursor(5, 40);
+    display.println("BLE: Not Connected");
+  }
+
+  float measuredvbat = analogRead(VBATPIN);
+  measuredvbat *= 2;    // we divided by 2, so multiply back
+  measuredvbat *= 3.6;  // Multiply by 3.6V, our reference voltage
+  measuredvbat /= 1024; // convert to voltage
+  //Serial.print("VBat: " ); Serial.println(measuredvbat);
+  display.setCursor(5, 50);
+  display.print("Battery: ");
+  display.println(measuredvbat);
+  
+  
   display.display();
 }
