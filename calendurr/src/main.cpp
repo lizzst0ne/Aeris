@@ -4,21 +4,35 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <string>
-#include <vector>
-#include <stdlib.h>
 #include <Arduino.h>
+#include <InternalFileSystem.h>
+#include <Adafruit_LittleFS.h>
+#include <cstdio>
 
+
+using namespace Adafruit_LittleFS_Namespace;
+using namespace std;
+
+// Battery pin
 #define VBATPIN A6
 
+// OLED Details
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 
 #define OLED_RESET -1
 #define SCREEN_ADDRESS 0x3D
 
+// file ?
+#define DATES "/wutduhdate.txt"
+
+File file(InternalFS);
+
+// Buttons
 #define SEND_BUTTON 25
 #define BLE_BUTTON 26
 
+// Day and month deets
 #define DAY_A 9
 #define DAY_B 10
 int dayB_status;
@@ -32,6 +46,7 @@ String m;
 
 #define months {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
 
+// Sensor Pins and Details
 #define TOP_R 11
 #define TOP_L 6
 #define SENSE 14
@@ -46,7 +61,7 @@ String m;
 #define X_LIMIT 330 //660
 #define Y_LIMIT 357 //715
 
-#define SCALE_FACTOR 10
+#define SCALE_FACTOR 10 // not actually being used rn i think
 
 unsigned short int x_raw;
 unsigned short int y_raw;
@@ -60,28 +75,32 @@ int last_y;
 int delX;
 int delY;
 
-std::vector<std::string> coordinates = {};
-
 unsigned char coordsArray[X_LIMIT][Y_LIMIT] = {0};
 
 unsigned int coordz[1][2];
-int numEntries;
+int numEntries; // prob dont need this 
 
-void read();
-void sendData();
 
+// Bluetooth functions
 void connect_callback(uint16_t conn_handle);
 void disconnect_callback(uint16_t conn_handle, uint8_t reason);
 void startAdv();
 
+// screen init
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// Bluetooth stuff
 BLEDis bledis;
 BLEUart bleuart;
 BLEBas blebas;
 
+// if Bluetooth is connected or not
 boolean isConnected;
 
+// Button Functions
+void readSensor();
+void sendData();
+// Date and printing Functions (interrupts for the knobs)
 void dayChange();
 void monthChange();
 void whatsTheDate();
@@ -89,10 +108,11 @@ void whatsTheDate();
 /*-----------------  SETUP FCN   -------------------*/
 void setup() {
   Serial.begin(115200);
-  //while (!Serial);
+  while (!Serial);
 
 
-//SENSOR SETUP
+
+  //SENSOR SETUP
   // set top and bottom pins to output, and initialize to low
   pinMode(TOP_R, OUTPUT);
   pinMode(TOP_L, OUTPUT);
@@ -118,8 +138,6 @@ void setup() {
 
   dayB_status = digitalRead(DAY_B);
   monthB_status = digitalRead(MONTH_B);
-  day = 1;
-  month = 1;
 
   numEntries = 0;
 
@@ -139,37 +157,11 @@ void setup() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   
-  isConnected = false;
 
 
-  int i = month - 1;
-  m = (String[])months[i];
-
-  display.clearDisplay();
-  display.setCursor(5,5);
-  display.print("Month: ");
-  display.println(m);
-
-  display.setCursor(5,15);
-  display.print("Day: ");
-  display.println(day);
-  
-  display.setCursor(5, 40);
-  display.println("BLE: Not Connected");
-  
-  float measuredvbat = analogRead(VBATPIN);
-  measuredvbat *= 2;    // we divided by 2, so multiply back
-  measuredvbat *= 3.6;  // Multiply by 3.6V, our reference voltage
-  measuredvbat /= 1024; // convert to voltage
-  //Serial.print("VBat: " ); Serial.println(measuredvbat);
-  display.setCursor(5, 50);
-  display.print("Battery: ");
-  display.println(measuredvbat);
-  
-  
-  display.display();
-
-
+  /*---------------------------------------------------*/
+  /*    Bluetooth BLE CONFIG                           */
+  /*---------------------------------------------------*/
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
   Bluefruit.setTxPower(4);
@@ -193,79 +185,74 @@ void setup() {
 
   startAdv();
 
-  
+  /*---------------------------------------------------*/
+  /*  DATE SETUP (find previous value from previous    */
+  /*  instance if it exists, otherwise: 1/1)           */
+  /*                                                   */
+  /*  Includes the File Setup/First read               */    
+  /*---------------------------------------------------*/
+  day = 1;
+  month = 1;
 
+  // FILE SETUP/READ
+  InternalFS.begin();
+
+  file.open(DATES, FILE_O_READ);
+
+  if(file){
+    uint32_t len;
+    char buffer[64] = {0};
+
+    len = file.read(buffer, sizeof(buffer));
+    buffer[len] = 0;
+
+    sscanf(buffer, "%d,%d", &month, &day); //update the month and day values
+
+    file.close();
+  }
+  else{Serial.println("LOESERRR");}
+
+  //set month string to hold the correct month name
+  int i = month - 1;
+  m = (String[])months[i];
+
+  isConnected = false;//Bluetooth is not connected
   
+  whatsTheDate();//print out the system status to the OLED
 
   //while(!Bluefruit.connected());
 
-  
-  // whatsTheDate();
-
-  uint8_t front[] = {"START"};
-  bleuart.write(front, sizeof(front));
+  // uint8_t front[] = {"START"};
+  // bleuart.write(front, sizeof(front));
 
 }
 
 
 /*-----------------  MAIN LOOP   -------------------*/
 void loop() {
-//SENSOR ACTIONS TO BE UNCOMMENTED LATER
 
   if(!digitalRead(SEND_BUTTON)){
-    //coordinates.push_back("hi urmom");
-
     sendData();
-    // //uint8_t buf[] = {"hi"};
-    // uint8_t buf[] = {"1"};
-    // bleuart.write(buf, sizeof(buf));
-    // display.clearDisplay();
-    // display.setCursor(0,0);
-    // //display.println("hi :)");
-    // display.println("Sent: 1");
-    // display.display();
-    // Serial.println("1");
   }
 
   if(!digitalRead(BLE_BUTTON)){
     //timer to keep track of how long button has been held
-    // int timeStart = millis();
-    // while(!digitalRead(BLE_BUTTON)){
-    //   int timeEnd = millis();
+    int timeStart = millis();
+    while(!digitalRead(BLE_BUTTON)){
+      int timeEnd = millis();
 
-    //   int timeHeld = timeEnd - timeStart;
+      int timeHeld = timeEnd - timeStart;
       
-    //   //when the timer exceeds 2.2 seconds or something the ble will be disconnected and 
-    //   //automatically start searching for another device to pair with
-    //   if(timeHeld >= 2200){
+      //when the timer exceeds 2 seconds or something the ble will be disconnected and 
+      //automatically start searching for another device to pair with
+      if(timeHeld >= 2000){
      
-    //     Bluefruit.disconnect(Bluefruit.connHandle());
-    //     break;
-    //   }
-    // }
+        Bluefruit.disconnect(Bluefruit.connHandle());
+        break;
+      }
+    }
 
-    //UNCOMMENT ABOVE
-
-    
-    Serial.println("aa");
-    // //uint8_t buf[] = {"your mother"};
-    // uint8_t buf[] = {"0"};
-    // bleuart.write(buf, sizeof(buf));
-    // display.clearDisplay();
-    // //display.setCursor(20,0);
-    // //display.println("your mother");
-    // display.setCursor(0,0);
-    // display.println("Sent: 0");
-    // display.display();
   }
-
-  // char test[40];
-
-  // sprintf(test, "X:%d  Y:%d", x_pos, y_pos);
-
-  // Serial.println(test);
-  
-//END SENSOR ACTIONS
 
   while(Serial.available()){
     delay(2);
@@ -281,84 +268,84 @@ void loop() {
     Serial.write(ch);
   }
 
-  if(isConnected){
+  // if(isConnected){
 
-    //////////////////////////////////////////////////
-    // set up pins to read in X coordinate
-    digitalWrite(TOP_R, HIGH);
-    digitalWrite(TOP_L, HIGH);
-    digitalWrite(BOTTOM_L, LOW);
-    digitalWrite(BOTTOM_R, LOW);
+  //   //////////////////////////////////////////////////
+  //   // set up pins to read in X coordinate
+  //   digitalWrite(TOP_R, HIGH);
+  //   digitalWrite(TOP_L, HIGH);
+  //   digitalWrite(BOTTOM_L, LOW);
+  //   digitalWrite(BOTTOM_R, LOW);
     
-    delay(1);
-    // read in x position
-    x_raw = analogRead(SENSE);
+  //   delay(1);
+  //   // read in x position
+  //   x_raw = analogRead(SENSE);
 
-    // set up pins to read in Y coordinate
-    digitalWrite(TOP_R, HIGH);
-    digitalWrite(TOP_L, LOW);
-    digitalWrite(BOTTOM_L, HIGH);
-    digitalWrite(BOTTOM_R, LOW);
+  //   // set up pins to read in Y coordinate
+  //   digitalWrite(TOP_R, HIGH);
+  //   digitalWrite(TOP_L, LOW);
+  //   digitalWrite(BOTTOM_L, HIGH);
+  //   digitalWrite(BOTTOM_R, LOW);
 
-    delay(1);
-    // read in y position
-    y_raw = analogRead(SENSE);
+  //   delay(1);
+  //   // read in y position
+  //   y_raw = analogRead(SENSE);
 
-    x_pos = (x_raw - X_MIN)/5;
-    y_pos = (y_raw - Y_MIN)/5;
+  //   x_pos = (x_raw - X_MIN)/5;
+  //   y_pos = (y_raw - Y_MIN)/5;
 
-    delX = x_pos - last_x;
-    delY = y_pos - last_y;
+  //   delX = x_pos - last_x;
+  //   delY = y_pos - last_y;
 
-    if(delX > -1 && delX < 1 && delY > -1 && delY < 1){
+  //   if(delX > -1 && delX < 1 && delY > -1 && delY < 1){
 
-      if(x_pos != (signed int)coordz[0][0] && y_pos != (signed int)coordz[0][1]){
-        //coordsArray[x_pos][y_pos] = 1;
-        coordz[0][0] = x_pos;
-        coordz[0][1] = y_pos;
+  //     if(x_pos != (signed int)coordz[0][0] && y_pos != (signed int)coordz[0][1]){
+  //       //coordsArray[x_pos][y_pos] = 1;
+  //       coordz[0][0] = x_pos;
+  //       coordz[0][1] = y_pos;
 
-        numEntries++;
+  //       numEntries++;
 
-        int size = 9;
+  //       //int size = 9;
 
-        // Serial.print(delX);
-        // Serial.print(" ");
-        // Serial.println(delY);
+  //       // Serial.print(delX);
+  //       // Serial.print(" ");
+  //       // Serial.println(delY);
 
-        // char coord[size];
-        // sprintf(coord, "[%d,%d],", coordz[0][0], coordz[0][1]);
-        // Serial.println(coord);
-        // bleuart.write(coord, sizeof(coord));
-      }
-    }
+  //       // char coord[size];
+  //       // sprintf(coord, "[%d,%d],", coordz[0][0], coordz[0][1]);
+  //       // Serial.println(coord);
+  //       // bleuart.write(coord, sizeof(coord));
+  //     }
+  //   }
 
-    // Serial.print(x_raw);
-    // Serial.print(" ");
-    // Serial.println(y_raw);
+  //   // Serial.print(x_raw);
+  //   // Serial.print(" ");
+  //   // Serial.println(y_raw);
 
-    // char coord[9];
-    // sprintf(coord, "[%d,%d],", x_raw, y_raw);
-    // Serial.println(coord);
+  //   // char coord[9];
+  //   // sprintf(coord, "[%d,%d],", x_raw, y_raw);
+  //   // Serial.println(coord);
 
-    last_x = x_pos;
-    last_y = y_pos;
+  //   last_x = x_pos;
+  //   last_y = y_pos;
 
     
 
-  }
+  // }
 
   
   
 
 /////////////////////////////////////////
 
-  //read();
+  //readSensor();
   delay(10);
   whatsTheDate();
   
 }
 
-void read(){
+void readSensor(){
   Serial.println("READ");
   // set up pins to read in X coordinate
   digitalWrite(TOP_R, HIGH);
@@ -407,7 +394,6 @@ void read(){
 }
 
 void sendData(){
-
   //prints out the array in 1's and 0's
   // for(int i = Y_LIMIT- 1; i >= 0; i--){
   //     //j is x coord
@@ -436,8 +422,19 @@ void sendData(){
   // Serial.println("}");
 
   //UNCOMMENT LATER
-  uint8_t end[] = {"STOP"};
-  bleuart.write(end, sizeof(end));
+
+  // uint8_t end[] = {"STOP"};
+  // bleuart.write(end, sizeof(end));
+
+  if(InternalFS.exists(DATES)){
+    InternalFS.remove(DATES);
+  }
+  if(file.open(DATES,FILE_O_WRITE)){
+     char dat[8];
+    sprintf(dat, "%d,%d", month, day);
+    file.write(dat, strlen(dat));
+    file.close();
+  }else{Serial.println("AA");}
 
 }
 
@@ -453,8 +450,6 @@ void startAdv(){
   Bluefruit.Advertising.setInterval(32, 244);
   Bluefruit.Advertising.setFastTimeout(30);
   Bluefruit.Advertising.start(0);
-
-  
 }
 
 void connect_callback(uint16_t conn_handle){
@@ -467,10 +462,7 @@ void connect_callback(uint16_t conn_handle){
   Serial.println(central_name);
 
   isConnected = true;
-  // display.clearDisplay();
-  // display.setCursor(0,0);
-  // display.println("Bluetooth Connected");
-  // display.display();
+  whatsTheDate();
 }
 
 void disconnect_callback(uint16_t conn_handle, uint8_t reason){
@@ -518,9 +510,7 @@ void dayChange(){
     else if(day > 30){
       day = 1;
     }
-  }
-  Serial.println(day);
-  whatsTheDate();
+  }  
 }
 
 void monthChange(){
@@ -538,15 +528,13 @@ void monthChange(){
   else if(month <= 0){
     month = 12;
   }
-  
-  Serial.println(month);
-  whatsTheDate();
-}
 
-void whatsTheDate(){
   int i = month - 1;
   m = (String[])months[i];
 
+}
+
+void whatsTheDate(){
   display.clearDisplay();
   display.setCursor(5,5);
   display.print("Month: ");
