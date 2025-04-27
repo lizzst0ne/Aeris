@@ -53,13 +53,13 @@ String m;
 #define BOTTOM_L 5
 #define BOTTOM_R 0
 
-#define X_MAX 2150
-#define X_MIN 1490
-#define Y_MAX 2115
-#define Y_MIN 1400
+#define X_MAX 13000 //ignore for now
+#define X_MIN 8850 //estimated
+#define Y_MAX 13000  //ignore this
+#define Y_MIN 8500 //estimated lol
 
-#define X_LIMIT 330 //660
-#define Y_LIMIT 357 //715
+#define X_LIMIT 1530 //660
+#define Y_LIMIT 1630 //715
 
 #define SCALE_FACTOR 10 // not actually being used rn i think
 
@@ -75,10 +75,37 @@ int last_y;
 int delX;
 int delY;
 
+int filtered_x;
+int filtered_y;
+
+int avg_x;
+int avg_y;
+
+int last_avg_x;
+int last_avg_y;
+
+int temp_x;
+int temp_y;
+
+int last_avg_x_2;
+int last_avg_y_2;
+int temp_x_2;
+int temp_y_2;
+int last_avg_x_3;
+int last_avg_y_3;
+int temp_x_3;
+int temp_y_3;
+int last_avg_x_4;
+int last_avg_y_4;
+int temp_x_4;
+int temp_y_4;
+
+#define coeff 0.1     /////////////////COEFF HERE
+
 unsigned char coordsArray[X_LIMIT][Y_LIMIT] = {0};
 
 unsigned int coordz[1][2];
-int numEntries; // prob dont need this 
+int numEntriesSame; // prob dont need this 
 
 
 // Bluetooth functions
@@ -139,13 +166,47 @@ void setup() {
   dayB_status = digitalRead(DAY_B);
   monthB_status = digitalRead(MONTH_B);
 
-  numEntries = 0;
+  numEntriesSame = 0;
 
-  analogReadResolution(12);
-  analogReference(AR_INTERNAL);
+  analogReadResolution(14);
+  analogReference(AR_INTERNAL_2_4);
 
   last_x = 0;
   last_y = 0;
+
+  filtered_x = 0;
+  filtered_y = 0;
+
+  avg_x = 0;
+  avg_y = 0;
+
+  last_avg_x = 0;
+  last_avg_y = 0;
+
+  temp_x = 0;
+  temp_y = 0;
+
+  last_avg_x_2 = 0;
+  last_avg_y_2 = 0;
+
+  temp_x_2 = 0;
+  temp_y_2 = 0;
+
+  last_avg_x_3 = 0;
+  last_avg_y_3 = 0;
+
+  temp_x_3 = 0;
+  temp_y_3 = 0;
+
+  last_avg_x_4 = 0;
+  last_avg_y_4 = 0;
+
+  temp_x_4 = 0;
+  temp_y_4 = 0;
+
+
+  
+
 //END SENSOR SETUP
 
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -270,67 +331,176 @@ void loop() {
 
   // if(isConnected){
 
-  //   //////////////////////////////////////////////////
-  //   // set up pins to read in X coordinate
-  //   digitalWrite(TOP_R, HIGH);
-  //   digitalWrite(TOP_L, HIGH);
-  //   digitalWrite(BOTTOM_L, LOW);
-  //   digitalWrite(BOTTOM_R, LOW);
+    //////////////////////////////////////////////////
+    // set up pins to read in X coordinate
+    digitalWrite(TOP_R, HIGH);
+    digitalWrite(TOP_L, HIGH);
+    digitalWrite(BOTTOM_L, LOW);
+    digitalWrite(BOTTOM_R, LOW);
     
-  //   delay(1);
-  //   // read in x position
-  //   x_raw = analogRead(SENSE);
+    delay(1);
+    // read in x position
+    x_raw = analogRead(SENSE);
 
-  //   // set up pins to read in Y coordinate
-  //   digitalWrite(TOP_R, HIGH);
-  //   digitalWrite(TOP_L, LOW);
-  //   digitalWrite(BOTTOM_L, HIGH);
-  //   digitalWrite(BOTTOM_R, LOW);
+    // set up pins to read in Y coordinate
+    digitalWrite(TOP_R, HIGH);
+    digitalWrite(TOP_L, LOW);
+    digitalWrite(BOTTOM_L, HIGH);
+    digitalWrite(BOTTOM_R, LOW);
 
-  //   delay(1);
-  //   // read in y position
-  //   y_raw = analogRead(SENSE);
+    delay(1);
+    // read in y position
+    y_raw = analogRead(SENSE);
 
-  //   x_pos = (x_raw - X_MIN)/5;
-  //   y_pos = (y_raw - Y_MIN)/5;
+   
+    if(x_raw>=8000 && y_raw >= 8000){
 
-  //   delX = x_pos - last_x;
-  //   delY = y_pos - last_y;
+      x_pos = ((x_raw - X_MAX) * -1)/1;
+      y_pos = (y_raw - Y_MIN)/1.25;
 
-  //   if(delX > -1 && delX < 1 && delY > -1 && delY < 1){
+      delX = last_x - x_pos;
+      delY = last_y - y_pos;
 
-  //     if(x_pos != (signed int)coordz[0][0] && y_pos != (signed int)coordz[0][1]){
-  //       //coordsArray[x_pos][y_pos] = 1;
-  //       coordz[0][0] = x_pos;
-  //       coordz[0][1] = y_pos;
+      if(abs(delX)<250 && abs(delY)<250){
+        if(x_pos != last_x || y_pos != last_y){
+          if(filtered_x != 0 && filtered_y != 0){
+            filtered_x = (coeff * x_pos) + (1 - coeff) * filtered_x;
+            filtered_y = (coeff * y_pos) + (1 - coeff) * filtered_y; 
+          }
+          else{
+            filtered_x = x_pos;
+            filtered_y = y_pos;
+          }
 
-  //       numEntries++;
+          if(avg_x != 0 && avg_y != 0){
 
-  //       //int size = 9;
+            temp_x = avg_x;
+            temp_y = avg_y;
+            temp_x_2 = last_avg_x;
+            temp_y_2 = last_avg_y;
+            temp_x_3 = last_avg_x_2;
+            temp_y_3 = last_avg_y_2;
+            temp_x_4 = last_avg_x_3;
+            temp_y_4 = last_avg_y_3;
 
-  //       // Serial.print(delX);
-  //       // Serial.print(" ");
-  //       // Serial.println(delY);
+            if(last_avg_x_4 != 0 && last_avg_y_4 != 0){
+              avg_x = (last_avg_x_4 + last_avg_x_3 + last_avg_x_2 + last_avg_x + avg_x + filtered_x)/6;
+              avg_y = (last_avg_y_4 + last_avg_y_3 + last_avg_y_2 + last_avg_y + avg_y + filtered_y)/6;
+            }
+            else if(last_avg_x_3 != 0 && last_avg_y_3 != 0){
+              avg_x = (last_avg_x_3 + last_avg_x_2 + last_avg_x + avg_x + filtered_x)/5;
+              avg_y = (last_avg_y_3 + last_avg_y_2 + last_avg_y + avg_y + filtered_y)/5;
+            }
+            else if(last_avg_x_2 != 0 && last_avg_y_2 != 0){
+              avg_x = (last_avg_x_2 + last_avg_x + avg_x + filtered_x)/4;
+              avg_y = (last_avg_y_2 + last_avg_y + avg_y + filtered_y)/4;
+            }
+            else if(last_avg_x !=0 && last_avg_y != 0){
+              avg_x = (last_avg_x + avg_x + filtered_x)/3;
+              avg_y = (last_avg_y + avg_y + filtered_y)/3;
+            }
+            else{
+              avg_x = (avg_x + filtered_x)/2;
+              avg_y = (avg_y + filtered_y)/2;
+            }
 
-  //       // char coord[size];
-  //       // sprintf(coord, "[%d,%d],", coordz[0][0], coordz[0][1]);
-  //       // Serial.println(coord);
-  //       // bleuart.write(coord, sizeof(coord));
-  //     }
-  //   }
+            last_avg_x = temp_x;
+            last_avg_y = temp_y;
+            last_avg_x_2 = temp_x_2;
+            last_avg_y_2 = temp_y_2;
+            last_avg_x_3 = temp_x_3;
+            last_avg_y_3 = temp_y_3;
+            last_avg_x_4 = temp_x_4;
+            last_avg_y_4 = temp_y_4;
+            
+          }
+          else{
+            avg_x = filtered_x;
+            avg_y = filtered_y;
+          }
+          
 
-  //   // Serial.print(x_raw);
-  //   // Serial.print(" ");
-  //   // Serial.println(y_raw);
+          //coordsArray[x_pos][y_pos] = 1;
+          coordz[0][0] = avg_x;
+          coordz[0][1] = avg_y;
 
-  //   // char coord[9];
-  //   // sprintf(coord, "[%d,%d],", x_raw, y_raw);
-  //   // Serial.println(coord);
+          int size = 12;
 
-  //   last_x = x_pos;
-  //   last_y = y_pos;
+          // Serial.print(delX);
+          // Serial.print(" ");
+          // Serial.println(delY);
 
-    
+          char coord[size];
+          sprintf(coord, "[%d,%d],", coordz[0][0], coordz[0][1]);
+          Serial.println(coord);
+          // bleuart.write(coord, sizeof(coord));
+
+          numEntriesSame = 0;
+        }
+        else{
+          numEntriesSame++;
+
+          if(numEntriesSame >= 5){
+            filtered_x = 0;
+            filtered_y = 0;
+            avg_x = 0;
+            avg_y = 0;
+            last_avg_x = 0;
+            last_avg_y = 0;
+            last_avg_x_2 = 0;
+            last_avg_y_2 = 0;
+            last_avg_x_3 = 0;
+            last_avg_y_3 = 0;
+            last_avg_x_4 = 0;
+            last_avg_y_4 = 0;
+          }
+        }
+      }
+      else{
+        filtered_x = 0;
+        filtered_y = 0;
+        avg_x = 0;
+        avg_y = 0;
+        last_avg_x = 0;
+        last_avg_y = 0;
+        last_avg_x_2 = 0;
+        last_avg_y_2 = 0;
+        last_avg_x_3 = 0;
+        last_avg_y_3 = 0;
+        last_avg_x_4 = 0;
+        last_avg_y_4 = 0;
+      }
+
+     
+    }
+    else{
+      filtered_x = 0;
+      filtered_y = 0;
+      avg_x = 0;
+      avg_y = 0;
+      last_avg_x = 0;
+      last_avg_y = 0;
+      last_avg_x_2 = 0;
+      last_avg_y_2 = 0;
+      last_avg_x_3 = 0;
+      last_avg_y_3 = 0;
+      last_avg_x_4 = 0;
+      last_avg_y_4 = 0;
+    }
+
+    last_x = x_pos;
+    last_y = y_pos;
+
+    // Serial.print(x_raw);
+    // Serial.print(" ");
+    // Serial.println(y_raw);
+
+    // char coord[15];
+    // sprintf(coord, "[%d,%d],", x_raw, y_raw);
+    // Serial.println(coord);
+
+      
+   
 
   // }
 
@@ -340,8 +510,8 @@ void loop() {
 /////////////////////////////////////////
 
   //readSensor();
-  delay(10);
-  whatsTheDate();
+  delay(1);
+  //whatsTheDate();
   
 }
 
@@ -379,10 +549,10 @@ void readSensor(){
 
     if(coordsArray[x_pos][y_pos] == 0){
       coordsArray[x_pos][y_pos] = 1;
-      coordz[numEntries][0] = x_pos;
-      coordz[numEntries][1] = y_pos;
+      // coordz[numEntries][0] = x_pos;
+      // coordz[numEntries][1] = y_pos;
 
-      numEntries++;
+      // numEntries++;
       //coordinates.push_back(coords);
     }
   }
