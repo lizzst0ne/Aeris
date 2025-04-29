@@ -15,6 +15,8 @@ using namespace std;
 
 // Battery pin
 #define VBATPIN A6
+float batteryPercent;
+int batteryChange;
 
 // OLED Details
 #define SCREEN_WIDTH 128
@@ -23,7 +25,7 @@ using namespace std;
 #define OLED_RESET -1
 #define SCREEN_ADDRESS 0x3D
 
-// file ?
+// file 
 #define DATES "/wutduhdate.txt"
 
 File file(InternalFS);
@@ -43,6 +45,8 @@ int day;
 int month;
 String d;
 String m;
+int monthTime;
+int dayTime;
 
 #define months {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
 
@@ -57,11 +61,6 @@ String m;
 #define X_MIN 8850 //estimated
 #define Y_MAX 13000  //ignore this
 #define Y_MIN 8500 //estimated lol
-
-#define X_LIMIT 1530 //660
-#define Y_LIMIT 1630 //715
-
-#define SCALE_FACTOR 10 // not actually being used rn i think
 
 unsigned short int x_raw;
 unsigned short int y_raw;
@@ -100,12 +99,10 @@ int last_avg_y_4;
 int temp_x_4;
 int temp_y_4;
 
-#define coeff 0.1     /////////////////COEFF HERE
-
-unsigned char coordsArray[X_LIMIT][Y_LIMIT] = {0};
+#define coeff 0.1 // Filter equation coefficient
 
 unsigned int coordz[1][2];
-int numEntriesSame; // prob dont need this 
+int numEntriesSame; 
 
 
 // Bluetooth functions
@@ -132,14 +129,15 @@ void dayChange();
 void monthChange();
 void whatsTheDate();
 
+
 /*-----------------  SETUP FCN   -------------------*/
 void setup() {
-  Serial.begin(115200);
-  while (!Serial);
+  // Serial.begin(115200);
 
 
-
-  //SENSOR SETUP
+  /*---------------------------------------------------*/
+  /*   Pin setup for user input (sensor, button, dial) */
+  /*---------------------------------------------------*/
   // set top and bottom pins to output, and initialize to low
   pinMode(TOP_R, OUTPUT);
   pinMode(TOP_L, OUTPUT);
@@ -166,10 +164,21 @@ void setup() {
   dayB_status = digitalRead(DAY_B);
   monthB_status = digitalRead(MONTH_B);
 
+  /*---------------------------------------------------*/
+  /*    ADC and coordinate filtering/averaging setup   */
+  /*---------------------------------------------------*/
   numEntriesSame = 0;
 
   analogReadResolution(14);
   analogReference(AR_INTERNAL_2_4);
+
+  float measuredvbat = analogRead(VBATPIN);
+  measuredvbat *= 2;    
+  measuredvbat *= 2.4;  // Multiply by 2.4V
+  measuredvbat /= 16384; // convert to voltage
+ 
+  batteryPercent = (measuredvbat/3.7) * 100;
+  batteryChange = 0;
 
   last_x = 0;
   last_y = 0;
@@ -205,12 +214,11 @@ void setup() {
   temp_y_4 = 0;
 
 
-  
-
-//END SENSOR SETUP
-
+  /*---------------------------------------------------*/
+  /*    OLED SCREEN CONFIG                             */
+  /*---------------------------------------------------*/
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
+    // Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
 
@@ -243,8 +251,7 @@ void setup() {
 
   blebas.begin();
   blebas.write(100);
-
-  startAdv();
+ 
 
   /*---------------------------------------------------*/
   /*  DATE SETUP (find previous value from previous    */
@@ -254,8 +261,10 @@ void setup() {
   /*---------------------------------------------------*/
   day = 1;
   month = 1;
+  monthTime = 0;
+  dayTime = 0;
 
-  // FILE SETUP/READ
+  // FILE SETUP/READ SAVED DATE (if it exists)
   InternalFS.begin();
 
   file.open(DATES, FILE_O_READ);
@@ -271,26 +280,32 @@ void setup() {
 
     file.close();
   }
-  else{Serial.println("LOESERRR");}
 
   //set month string to hold the correct month name
   int i = month - 1;
   m = (String[])months[i];
 
+
+  /*---------------------------------------------------*/
+  /*    Final initializations                          */
+  /*---------------------------------------------------*/
   isConnected = false;//Bluetooth is not connected
   
   whatsTheDate();//print out the system status to the OLED
 
-  //while(!Bluefruit.connected());
+  startAdv();
 
-  // uint8_t front[] = {"START"};
-  // bleuart.write(front, sizeof(front));
+  // Wait until BLE is connected in order to start everything
+  // (on power on)
+  // while(!Bluefruit.connected());
+
 
 }
 
 
 /*-----------------  MAIN LOOP   -------------------*/
 void loop() {
+  whatsTheDate();
 
   if(!digitalRead(SEND_BUTTON)){
     sendData();
@@ -315,23 +330,15 @@ void loop() {
 
   }
 
-  while(Serial.available()){
-    delay(2);
-
-    uint8_t buf[64];
-    int count = Serial.readBytes(buf, sizeof(buf));
-    bleuart.write(buf, count);
-  }
-  
-  while(bleuart.available()){
-    uint8_t ch;
-    ch = (uint8_t) bleuart.read();
-    Serial.write(ch);
+  // read from the sensor if the device is connected to BLE
+  if(isConnected){
+    readSensor();
   }
 
-  // if(isConnected){
+  delay(1);
+}
 
-    //////////////////////////////////////////////////
+void readSensor(){
     // set up pins to read in X coordinate
     digitalWrite(TOP_R, HIGH);
     digitalWrite(TOP_L, HIGH);
@@ -352,17 +359,23 @@ void loop() {
     // read in y position
     y_raw = analogRead(SENSE);
 
-   
+    // check if the read value is within the limits for the sensor
+    // (anything below ~8000 is outside the bounds)
     if(x_raw>=8000 && y_raw >= 8000){
+      // shift and scale the coordinates to better numbers 
+      // (x and y don't match cuz orientation was different during development)
+      y_pos = ((x_raw - X_MAX) * -1)/1;
+      x_pos = (y_raw - Y_MIN)/1.25;
 
-      x_pos = ((x_raw - X_MAX) * -1)/1;
-      y_pos = (y_raw - Y_MIN)/1.25;
-
+      // calculate the difference between the last value and current
       delX = last_x - x_pos;
       delY = last_y - y_pos;
 
+      // if the difference is too large, assume sensor not reading input from the user
       if(abs(delX)<250 && abs(delY)<250){
+        // do not perform calcualtions if the coordinates read in are the same as the previous reading's coordinates
         if(x_pos != last_x || y_pos != last_y){
+          // filter the coordinates (if there are no previous filtered values, just set to current x and y)
           if(filtered_x != 0 && filtered_y != 0){
             filtered_x = (coeff * x_pos) + (1 - coeff) * filtered_x;
             filtered_y = (coeff * y_pos) + (1 - coeff) * filtered_y; 
@@ -372,17 +385,30 @@ void loop() {
             filtered_y = y_pos;
           }
 
+          // average the coordinates with up to 5 of the most recent averages
+          // (if there are no previous averaged values, set the value to what the filtered coords are)
           if(avg_x != 0 && avg_y != 0){
-
-            temp_x = avg_x;
+            /*----------------------------------------------------------*/
+            /* - keep track of the previous reading's averages -        */
+            /*                                                          */
+            /* before the averaging of the current loop:                */
+            /* - filtered_x/y holds the current value                   */
+            /* - avg_x/y holds the previous average                     */ 
+            /* - last_avg_x/y holds the average from two loops ago      */
+            /* - last_avg_x/y_2 holds the average from three loops ago  */
+            /* - last_avg_x/y_3 holds the average from four loops ago   */
+            /* - last_avg_x/y_4 holds the average from five loops ago   */
+            /*----------------------------------------------------------*/
+            temp_x = avg_x; 
             temp_y = avg_y;
-            temp_x_2 = last_avg_x;
+            temp_x_2 = last_avg_x; 
             temp_y_2 = last_avg_y;
-            temp_x_3 = last_avg_x_2;
+            temp_x_3 = last_avg_x_2; 
             temp_y_3 = last_avg_y_2;
-            temp_x_4 = last_avg_x_3;
+            temp_x_4 = last_avg_x_3; 
             temp_y_4 = last_avg_y_3;
 
+            // average the coordinates based on how many averages have been calculated per user input
             if(last_avg_x_4 != 0 && last_avg_y_4 != 0){
               avg_x = (last_avg_x_4 + last_avg_x_3 + last_avg_x_2 + last_avg_x + avg_x + filtered_x)/6;
               avg_y = (last_avg_y_4 + last_avg_y_3 + last_avg_y_2 + last_avg_y + avg_y + filtered_y)/6;
@@ -404,6 +430,7 @@ void loop() {
               avg_y = (avg_y + filtered_y)/2;
             }
 
+            // update the values of the previous averages
             last_avg_x = temp_x;
             last_avg_y = temp_y;
             last_avg_x_2 = temp_x_2;
@@ -419,27 +446,23 @@ void loop() {
             avg_y = filtered_y;
           }
           
-
-          //coordsArray[x_pos][y_pos] = 1;
+          // format message of and send coordinates via BLE 
           coordz[0][0] = avg_x;
           coordz[0][1] = avg_y;
 
           int size = 12;
 
-          // Serial.print(delX);
-          // Serial.print(" ");
-          // Serial.println(delY);
-
           char coord[size];
-          sprintf(coord, "[%d,%d],", coordz[0][0], coordz[0][1]);
-          Serial.println(coord);
-          // bleuart.write(coord, sizeof(coord));
+          sprintf(coord, "%d %d", coordz[0][0], coordz[0][1]); //test python script reads "[%d,%d]," not just "x y"
+          // Serial.println(coord);
+          bleuart.write(coord, sizeof(coord));
 
-          numEntriesSame = 0;
+          numEntriesSame = 0; // indicates the current input coordinate was not the same as the previous's input
         }
         else{
           numEntriesSame++;
 
+          // use a hysteresis to force reset all calculated values (in case of sensor reading error, etc)
           if(numEntriesSame >= 5){
             filtered_x = 0;
             filtered_y = 0;
@@ -453,6 +476,8 @@ void loop() {
             last_avg_y_3 = 0;
             last_avg_x_4 = 0;
             last_avg_y_4 = 0;
+
+            numEntriesSame = 0;
           }
         }
       }
@@ -474,6 +499,8 @@ void loop() {
      
     }
     else{
+      // reset calculated values if value read in is outside of the bounds
+      // indicates no user input detected
       filtered_x = 0;
       filtered_y = 0;
       avg_x = 0;
@@ -490,122 +517,36 @@ void loop() {
 
     last_x = x_pos;
     last_y = y_pos;
-
-    // Serial.print(x_raw);
-    // Serial.print(" ");
-    // Serial.println(y_raw);
-
-    // char coord[15];
-    // sprintf(coord, "[%d,%d],", x_raw, y_raw);
-    // Serial.println(coord);
-
-      
-   
-
-  // }
-
-  
-  
-
-/////////////////////////////////////////
-
-  //readSensor();
-  delay(1);
-  //whatsTheDate();
-  
-}
-
-void readSensor(){
-  Serial.println("READ");
-  // set up pins to read in X coordinate
-  digitalWrite(TOP_R, HIGH);
-  digitalWrite(TOP_L, HIGH);
-  digitalWrite(BOTTOM_L, LOW);
-  digitalWrite(BOTTOM_R, LOW);
-  
-  delay(1);
-  // read in x position
-  x_raw = analogRead(SENSE);
-
-  // set up pins to read in Y coordinate
-  digitalWrite(TOP_R, HIGH);
-  digitalWrite(TOP_L, LOW);
-  digitalWrite(BOTTOM_L, HIGH);
-  digitalWrite(BOTTOM_R, LOW);
-
-  delay(1);
-  // read in y position
-  y_raw = analogRead(SENSE);
-
-  x_pos = (x_raw - X_MIN)/2;
-  y_pos = (y_raw - Y_MIN)/2;
-
-  delX = x_pos - last_x;
-  delY = y_pos - last_y;
-
-  if(delX > -6 && delX < 6 && delY > -6 && delY < 6){
-    
-    //std::string coords = std::to_string(x_pos) + ' ' + std::to_string(y_pos);
-
-    if(coordsArray[x_pos][y_pos] == 0){
-      coordsArray[x_pos][y_pos] = 1;
-      // coordz[numEntries][0] = x_pos;
-      // coordz[numEntries][1] = y_pos;
-
-      // numEntries++;
-      //coordinates.push_back(coords);
-    }
-  }
-
-  last_x = x_pos;
-  last_y = y_pos;
-
-  //Serial.println(x);
 }
 
 void sendData(){
-  //prints out the array in 1's and 0's
-  // for(int i = Y_LIMIT- 1; i >= 0; i--){
-  //     //j is x coord
-  //     for(int j = X_LIMIT - 1; j >= 0; j--){
-  //       char c = coordsArray[j][i];
-  //       Serial.printf("%d", c);
-  //     }
-  //     Serial.print("\n");
-  // }
+  if(Bluefruit.connected()){
+    // send "STOP" via BLE to indicate end of coordinate set
+    uint8_t end[] = {"STOP"};
+    bleuart.write(end, sizeof(end));
 
-  //UNCOMMENT LATER
-  // uint8_t front[] = {"START"};
-  // bleuart.write(front, sizeof(front));
+    // store the date in the internal memory of the device
+    // send the date via BLE
+    if(InternalFS.exists(DATES)){
+      InternalFS.remove(DATES);
+    }
+    if(file.open(DATES,FILE_O_WRITE)){
+      char dat[8];
+      sprintf(dat, "%d,%d", month, day);
+      file.write(dat, strlen(dat));
+      file.close();
+      bleuart.write(dat, sizeof(dat));
+    }
 
-  // for(int i = 0; i < numEntries; i++){
-  //   int size = 9;
+    // send "END" to indicate end of all data sent 
+    uint8_t endDate[] = {"END"};
+    bleuart.write(endDate, sizeof(endDate));
 
-  //   char coord[size];
-  //   sprintf(coord, "[%d,%d],", coordz[i][0], coordz[i][1]);
-
-  //   bleuart.write(coord, sizeof(coord));
-    
-    // Serial.print("{");
-    // Serial.println(coord);
-  // }
-  // Serial.println("}");
-
-  //UNCOMMENT LATER
-
-  // uint8_t end[] = {"STOP"};
-  // bleuart.write(end, sizeof(end));
-
-  if(InternalFS.exists(DATES)){
-    InternalFS.remove(DATES);
+    // send "START" to indicate beginning of next entry (if it exists)
+    uint8_t front[] = {"START"};
+    bleuart.write(front, sizeof(front));
   }
-  if(file.open(DATES,FILE_O_WRITE)){
-     char dat[8];
-    sprintf(dat, "%d,%d", month, day);
-    file.write(dat, strlen(dat));
-    file.close();
-  }else{Serial.println("AA");}
-
+  
 }
 
 void startAdv(){
@@ -623,87 +564,111 @@ void startAdv(){
 }
 
 void connect_callback(uint16_t conn_handle){
-  BLEConnection* connection = Bluefruit.Connection(conn_handle);
+  // BLEConnection* connection = Bluefruit.Connection(conn_handle);
 
-  char central_name[32] = {0};
-  connection -> getPeerName(central_name, sizeof(central_name));
+  // char central_name[32] = {0};
+  // connection -> getPeerName(central_name, sizeof(central_name));
 
-  Serial.print("connected to ");
-  Serial.println(central_name);
+  // Serial.print("connected to ");
+  // Serial.println(central_name);
 
   isConnected = true;
-  whatsTheDate();
+  uint8_t front[] = {"START"};
+  bleuart.write(front, sizeof(front));
+  //whatsTheDate();
 }
 
 void disconnect_callback(uint16_t conn_handle, uint8_t reason){
-  (void) conn_handle;
-  (void) reason;
+  // (void) conn_handle;
+  // (void) reason;
 
   isConnected = false;
-  whatsTheDate();
+  //whatsTheDate();
 
-  Serial.println();
-  Serial.print("disconnected, reason 0x");
-  Serial.println(reason, HEX);
+  // Serial.println();
+  // Serial.print("disconnected, reason 0x");
+  // Serial.println(reason, HEX);
 }
 
 void dayChange(){
-  dayB_status = digitalRead(DAY_B);
+  int time = millis();
+  int diff = time - dayTime;
 
-  if(dayB_status == 1){
-    day++;
-  }
-  else if(dayB_status == 0){
-    day--;
+  if(abs(diff) > 25){
+    dayB_status = digitalRead(DAY_B);
+
+    if(dayB_status == 1){
+      day++;
+    }
+    else if(dayB_status == 0){
+      day--;
+    }
+  
+    if(month == 2){
+      if(day <= 0){
+        day = 28;
+      }
+      else if(day > 28){
+        day = 1;
+      }
+    }
+    else if(month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12){
+      if(day <= 0){
+        day = 31;
+      }
+      else if(day > 31){
+        day = 1;
+      }
+    }
+    else{
+      if(day <= 0){
+        day = 30;
+      }
+      else if(day > 30){
+        day = 1;
+      }
+    }  
   }
 
-  if(month == 2){
-    if(day <= 0){
-      day = 28;
-    }
-    else if(day > 28){
-      day = 1;
-    }
-  }
-  else if(month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12){
-    if(day <= 0){
-      day = 31;
-    }
-    else if(day > 31){
-      day = 1;
-    }
-  }
-  else{
-    if(day <= 0){
-      day = 30;
-    }
-    else if(day > 30){
-      day = 1;
-    }
-  }  
+  dayTime = millis();
+
 }
 
 void monthChange(){
-  monthB_status = digitalRead(MONTH_B);
+  int time = millis();
+  int diff = time - monthTime;
 
-  if(monthB_status == 1){
-    month++;
-  }
-  else if(monthB_status == 0){
-    month--;
-  }
-  if(month >= 13){
-    month = 1;
-  }
-  else if(month <= 0){
-    month = 12;
+  // only update date if time since last pin change is long enough
+  // (ensure change is made on actual turn not debounce/misread/etc)
+  if(abs(diff) > 25){
+    monthB_status = digitalRead(MONTH_B);
+
+    if(monthB_status == 1){
+      month++;
+    }
+    else if(monthB_status == 0){
+      month--;
+    }
+    if(month >= 13){
+      month = 1;
+    }
+    else if(month <= 0){
+      month = 12;
+    }
+  
+    int i = month - 1;
+    m = (String[])months[i];
   }
 
-  int i = month - 1;
-  m = (String[])months[i];
+  monthTime = millis();
 
 }
 
+/*----------------------------------*/
+/* Displays the date, month, BLE    */
+/* connectivity status, and battery */
+/* percent on the OLED screen.      */
+/*----------------------------------*/
 void whatsTheDate(){
   display.clearDisplay();
   display.setCursor(5,5);
@@ -724,15 +689,39 @@ void whatsTheDate(){
     display.println("BLE: Not Connected");
   }
 
+  // calculate battery percent and display
+  float lastPercent = batteryPercent;
+
   float measuredvbat = analogRead(VBATPIN);
-  measuredvbat *= 2;    // we divided by 2, so multiply back
-  measuredvbat *= 3.6;  // Multiply by 3.6V, our reference voltage
-  measuredvbat /= 1024; // convert to voltage
-  //Serial.print("VBat: " ); Serial.println(measuredvbat);
+  measuredvbat *= 2;    
+  measuredvbat *= 2.4;  // Multiply by 2.4V
+  measuredvbat /= 16384; // convert to voltage
+ 
   display.setCursor(5, 50);
   display.print("Battery: ");
-  display.println(measuredvbat);
+
+  batteryPercent = (measuredvbat/3.7) * 100;
+
+  float delBattery = batteryPercent - lastPercent;
+
+  // only update battery percent if readings have been 
+  // different from the previous value > 5 times 
+  if(abs(delBattery) > 0){
+    batteryChange++;
+    if(batteryChange > 5){
+      batteryChange = 0;
+    }
+    else if(batteryChange > 0){
+      batteryPercent = lastPercent;
+    }
+  }
   
+  if(batteryPercent >= 100){
+    display.println(100);
+  }
+  else{
+    display.println(int(batteryPercent));
+  }
   
   display.display();
 }
