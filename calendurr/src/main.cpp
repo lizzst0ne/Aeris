@@ -365,7 +365,7 @@ void readSensor(){
       // shift and scale the coordinates to better numbers 
       // (x and y don't match cuz orientation was different during development)
       y_pos = ((x_raw - X_MAX) * -1)/1;
-      x_pos = (y_raw - Y_MIN)/1.25;
+      x_pos = ((y_raw - Y_MAX) * -1)/1.25;
 
       // calculate the difference between the last value and current
       delX = last_x - x_pos;
@@ -450,12 +450,31 @@ void readSensor(){
           coordz[0][0] = avg_x;
           coordz[0][1] = avg_y;
 
-          int size = 12;
+          int size = 9;
 
           char coord[size];
+          
           sprintf(coord, "%d %d", coordz[0][0], coordz[0][1]); //test python script reads "[%d,%d]," not just "x y"
-          // Serial.println(coord);
-          bleuart.write(coord, sizeof(coord));
+          uint8_t msg[size];
+          for(int i = 0; i < 9; i++){
+            if(coord[i] < 0){
+              msg[i] = -1 * coord[i];
+            }
+            else{
+              msg[i] = coord[i];
+            }
+          }
+
+          if(coordz[0][0] < 100 || coordz[0][1] < 100){
+            bleuart.write(msg, 6);
+          }
+          else if(coordz[0][0] < 1000 && coordz[0][1] < 1000){
+            bleuart.write(msg, 7);
+          }
+          else{
+            bleuart.write(msg, sizeof(msg));
+          }
+          
 
           numEntriesSame = 0; // indicates the current input coordinate was not the same as the previous's input
         }
@@ -531,11 +550,17 @@ void sendData(){
       InternalFS.remove(DATES);
     }
     if(file.open(DATES,FILE_O_WRITE)){
-      char dat[8];
+      char dat[5];
       sprintf(dat, "%d,%d", month, day);
       file.write(dat, strlen(dat));
       file.close();
-      bleuart.write(dat, sizeof(dat));
+      if(month < 10 && day < 10){
+        bleuart.write(dat, 3);
+      }
+      else{
+        bleuart.write(dat, sizeof(dat));
+      }
+      
     }
 
     // send "END" to indicate end of all data sent 
@@ -564,37 +589,20 @@ void startAdv(){
 }
 
 void connect_callback(uint16_t conn_handle){
-  // BLEConnection* connection = Bluefruit.Connection(conn_handle);
-
-  // char central_name[32] = {0};
-  // connection -> getPeerName(central_name, sizeof(central_name));
-
-  // Serial.print("connected to ");
-  // Serial.println(central_name);
-
   isConnected = true;
   uint8_t front[] = {"START"};
   bleuart.write(front, sizeof(front));
-  //whatsTheDate();
 }
 
 void disconnect_callback(uint16_t conn_handle, uint8_t reason){
-  // (void) conn_handle;
-  // (void) reason;
-
   isConnected = false;
-  //whatsTheDate();
-
-  // Serial.println();
-  // Serial.print("disconnected, reason 0x");
-  // Serial.println(reason, HEX);
 }
 
 void dayChange(){
   int time = millis();
   int diff = time - dayTime;
 
-  if(abs(diff) > 25){
+  if(abs(diff) > 10){
     dayB_status = digitalRead(DAY_B);
 
     if(dayB_status == 1){
@@ -635,12 +643,12 @@ void dayChange(){
 }
 
 void monthChange(){
-  int time = millis();
-  int diff = time - monthTime;
+  // int time = millis();
+  // int diff = time - monthTime;
 
   // only update date if time since last pin change is long enough
   // (ensure change is made on actual turn not debounce/misread/etc)
-  if(abs(diff) > 25){
+  // if(abs(diff) > 0){
     monthB_status = digitalRead(MONTH_B);
 
     if(monthB_status == 1){
@@ -658,9 +666,9 @@ void monthChange(){
   
     int i = month - 1;
     m = (String[])months[i];
-  }
+  // }
 
-  monthTime = millis();
+  // monthTime = millis();
 
 }
 
