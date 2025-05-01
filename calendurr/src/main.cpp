@@ -215,20 +215,6 @@ void setup() {
 
 
   /*---------------------------------------------------*/
-  /*    OLED SCREEN CONFIG                             */
-  /*---------------------------------------------------*/
-  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    // Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
-  }
-
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  
-
-
-  /*---------------------------------------------------*/
   /*    Bluetooth BLE CONFIG                           */
   /*---------------------------------------------------*/
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
@@ -284,6 +270,18 @@ void setup() {
   //set month string to hold the correct month name
   int i = month - 1;
   m = (String[])months[i];
+
+  /*---------------------------------------------------*/
+  /*    OLED SCREEN CONFIG                             */
+  /*---------------------------------------------------*/
+  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    // Serial.println(F("SSD1306 allocation failed"));
+    for(;;); // Don't proceed, loop forever
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
 
 
   /*---------------------------------------------------*/
