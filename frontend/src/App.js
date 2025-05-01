@@ -4,6 +4,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 import GoogleLoginButton from './GoogleLoginButton';
 import CalendarComponent from './CalendarComponent';
 
+// [ADDED] React Router imports
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import BluetoothPage from './BluetoothPage';
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,7 +18,6 @@ function App() {
       setLoading(false);
     });
 
-    // Cleanup subscription
     return () => unsubscribe();
   }, []);
 
@@ -26,31 +29,51 @@ function App() {
     return <div>Loading...</div>;
   }
 
+  // [ADDED] Wrap everything in <Router>
   return (
-    <div className="app">
-      <header>
-        <h1>Google Calendar Integration</h1>
-        {user ? (
-          <div className="user-info">
-            <img src={user.photoURL} alt="Profile" className="profile-pic" />
-            <span>Welcome, {user.displayName}</span>
-            <button onClick={() => auth.signOut()}>Sign Out</button>
-          </div>
-        ) : (
-          <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
-        )}
-      </header>
+    <Router>
+      <div className="app">
+        <header>
+          <h1>Google Calendar Integration</h1>
+          {/*  [ADDED] Button to go to Bluetooth Page */}
+          <Link to="/bluetooth">
+            <button style={{ marginRight: '1rem' }}>Go to Bluetooth Page</button>
+          </Link>
 
-      <main>
-        {user ? (
-          <CalendarComponent />
-        ) : (
-          <div className="login-prompt">
-            <p>Please sign in with Google to access your calendar</p>
-          </div>
-        )}
-      </main>
-    </div>
+          {user ? (
+            <div className="user-info">
+              <img src={user.photoURL} alt="Profile" className="profile-pic" />
+              <span>Welcome, {user.displayName}</span>
+              <button onClick={() => auth.signOut()}>Sign Out</button>
+            </div>
+          ) : (
+            <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
+          )}
+        </header>
+
+        {/*  [ADDED] Define Routes */}
+        <Routes>
+          {/* Bluetooth Page route */}
+          <Route path="/bluetooth" element={<BluetoothPage />} />
+
+          {/* Root route shows calendar/login logic */}
+          <Route
+            path="/"
+            element={
+              <main>
+                {user ? (
+                  <CalendarComponent />
+                ) : (
+                  <div className="login-prompt">
+                    <p>Please sign in with Google to access your calendar</p>
+                  </div>
+                )}
+              </main>
+            }
+          />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
