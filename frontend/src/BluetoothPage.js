@@ -23,17 +23,47 @@ const BluetoothPage = () => {
   };
 
   const handleDataReceived = (event) => {
-    const value = event.target.value;
-    const dataView = new DataView(value.buffer);
-    const state = dataView.getUint8(0);
-    setButtonState(state);
+    const bufferRef = useRef('');
+    const parsedPointsRef = useRef([]);
 
-    setHistory((prev) => {
-      const updated = [`${new Date().toLocaleTimeString()}: ${state}`, ...prev];
-      return updated.slice(0, 10);
-    });
+    const handleDataReceived = (event) => {
+        const value = event.target.value;
+        const textDecoder = new TextDecoder('utf-8');
+        const chunk = textDecoder.decode(value);
 
-    setStatus('Connected - Data Received');
+        bufferRef.current += chunk;
+
+        // Split by newline to process full lines
+        const lines = bufferRef.current.split('\n');
+        bufferRef.current = lines.pop(); // last (possibly incomplete) line saved
+
+        for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+
+            if (line === 'START') {
+            parsedPointsRef.current = [];
+            setStatus('Receiving Data...');
+            } else if (line === 'STOP') {
+            setStatus('Coordinate Stream Complete');
+            } else if (line === 'END') {
+            log('Data stream ended');
+            setHistory((prev) => [
+                `Received ${parsedPointsRef.current.length} points`,
+                ...prev,
+            ]);
+            parsedPointsRef.current = [];
+            } else if (line.includes(',')) {
+            log('Received date:', line);
+            } else if (/^\d+\s+\d+$/.test(line)) {
+            const [x, y] = line.split(' ').map(Number);
+            parsedPointsRef.current.push({ x, y });
+            setButtonState(`Point: (${x}, ${y})`);
+            } else {
+            log('Unknown line:', line);
+            }
+        }
+    };
   };
 
   const setupNotificationsAndPolling = async (characteristic) => {
