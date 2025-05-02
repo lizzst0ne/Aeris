@@ -8,12 +8,18 @@ const BluetoothPage = () => {
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [buttonState, setButtonState] = useState(null);
   const [history, setHistory] = useState([]);
+  const [debugLogs, setDebugLogs] = useState([]);
+
   const dataCharRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const bufferRef = useRef('');
   const parsedPointsRef = useRef([]);
 
-  const log = (...args) => console.log('[Bluetooth]', ...args);
+  const appendDebug = (msg) => {
+    const time = new Date().toLocaleTimeString();
+    setDebugLogs((prev) => [`${time} - ${msg}`, ...prev.slice(0, 100)]);
+    console.log('[Debug]', msg);
+  };
 
   const handleDisconnection = () => {
     setStatus('Disconnected');
@@ -21,17 +27,19 @@ const BluetoothPage = () => {
     dataCharRef.current = null;
     setButtonState(null);
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    log('Device disconnected');
+    appendDebug('Device disconnected');
   };
 
   const handleDataReceived = (event) => {
     const value = event.target.value;
     const textDecoder = new TextDecoder('utf-8');
     const chunk = textDecoder.decode(value);
+    appendDebug('Received chunk: ' + chunk);
 
     bufferRef.current += chunk;
+
     const lines = bufferRef.current.split('\n');
-    bufferRef.current = lines.pop(); // keep incomplete line
+    bufferRef.current = lines.pop(); // retain any partial line
 
     for (let line of lines) {
       line = line.trim();
@@ -40,23 +48,26 @@ const BluetoothPage = () => {
       if (line === 'START') {
         parsedPointsRef.current = [];
         setStatus('Receiving Data...');
+        appendDebug('START received');
       } else if (line === 'STOP') {
         setStatus('Coordinate Stream Complete');
+        appendDebug('STOP received');
       } else if (line === 'END') {
-        log('Data stream ended');
+        appendDebug('END received');
         setHistory((prev) => [
           `Received ${parsedPointsRef.current.length} points`,
           ...prev,
         ]);
         parsedPointsRef.current = [];
       } else if (line.includes(',')) {
-        log('Received date:', line);
+        appendDebug('Received date string: ' + line);
       } else if (/^\d+\s+\d+$/.test(line)) {
         const [x, y] = line.split(' ').map(Number);
         parsedPointsRef.current.push({ x, y });
         setButtonState(`Point: (${x}, ${y})`);
+        appendDebug(`Parsed point: (${x}, ${y})`);
       } else {
-        log('Unknown line:', line);
+        appendDebug('Unrecognized line: ' + line);
       }
     }
   };
@@ -67,9 +78,9 @@ const BluetoothPage = () => {
     try {
       await characteristic.startNotifications();
       characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
-      log('Notifications enabled');
+      appendDebug('Notifications enabled');
     } catch (err) {
-      log('Notifications failed:', err.message);
+      appendDebug('Notifications failed: ' + err.message);
     }
 
     pollingIntervalRef.current = setInterval(async () => {
@@ -78,6 +89,7 @@ const BluetoothPage = () => {
         const value = await dataCharRef.current.readValue();
         handleDataReceived({ target: { value } });
       } catch (err) {
+        appendDebug('Polling error: ' + err.message);
         if (err.message.includes('disconnected')) {
           clearInterval(pollingIntervalRef.current);
         }
@@ -93,6 +105,7 @@ const BluetoothPage = () => {
       });
       setConnectedDevice(device);
       setStatus('Connecting...');
+      appendDebug('Device selected: ' + device.name);
 
       const server = await device.gatt.connect();
       const service = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
@@ -100,10 +113,11 @@ const BluetoothPage = () => {
 
       await setupNotificationsAndPolling(characteristic);
       setStatus('Connected - Waiting for Data');
+      appendDebug('Connected and service ready');
 
       device.addEventListener('gattserverdisconnected', handleDisconnection);
     } catch (err) {
-      log('Connection failed:', err.message);
+      appendDebug('Connection failed: ' + err.message);
       setStatus(`Connection failed: ${err.message}`);
     }
   };
@@ -123,9 +137,9 @@ const BluetoothPage = () => {
       <p><strong>Status:</strong> {status}</p>
       <button onClick={connectToDevice}>Connect to Adafruit BLE Device</button>
 
-      {buttonState !== null && (
+      {buttonState && (
         <div style={{ marginTop: '20px' }}>
-          <p><strong>Button State:</strong> {buttonState}</p>
+          <p><strong>Latest Point:</strong> {buttonState}</p>
         </div>
       )}
 
@@ -139,6 +153,22 @@ const BluetoothPage = () => {
           </ul>
         </div>
       )}
+
+      <div style={{ marginTop: '30px' }}>
+        <h4>Debug Console</h4>
+        <div style={{
+          maxHeight: '200px',
+          overflowY: 'auto',
+          backgroundColor: '#f4f4f4',
+          padding: '10px',
+          fontFamily: 'monospace',
+          border: '1px solid #ccc'
+        }}>
+          {debugLogs.map((log, idx) => (
+            <div key={idx}>{log}</div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

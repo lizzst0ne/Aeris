@@ -118,52 +118,22 @@
  }
  
  void loop() {
-  if (!digitalRead(SEND_BUTTON)) {
-    delay(300);  // debounce
-
-    if (Bluefruit.connected()) {
-      const char* messages[] = {
-        "START",
-        "100 200",
-        "150 250",
-        "STOP",
-        "5,1",
-        "END"
-      };
-
-      for (int i = 0; i < 6; i++) {
-        const char* msg = messages[i];
-        size_t len = strlen(msg);
-
-        // BLECharacteristic requires a uint8_t* pointer
-        dataCharacteristic.write((const uint8_t*)msg, len);
-
-        delay(100); // slight delay to ensure frontend catches up
-      }
-
+  if(!digitalRead(SEND_BUTTON)) {
+    unsigned long currentTime = millis();
+  
+    if (currentTime - lastButtonPress > debounceTime) {
+      lastButtonPress = currentTime;
+  
+      const char* testMsg = "123 456\n"; // Send newline-terminated test string
+      dataCharacteristic.write((const uint8_t*)testMsg, strlen(testMsg));
+  
       display.clearDisplay();
       display.setCursor(0, 0);
-      display.println("Test data sent!");
+      display.println("Sent test data");
       display.display();
-
-      // Wait for release
-      while (!digitalRead(SEND_BUTTON)) {
+  
+      while(!digitalRead(SEND_BUTTON)) {
         delay(10);
-      }
-    }
-  }
-
-  // BLE disconnect logic
-  if (!digitalRead(BLE_BUTTON)) {
-    int timeStart = millis();
-    while (!digitalRead(BLE_BUTTON)) {
-      if ((millis() - timeStart) >= 2200) {
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("Disconnecting...");
-        display.display();
-        Bluefruit.disconnect(Bluefruit.connHandle());
-        break;
       }
     }
   }
