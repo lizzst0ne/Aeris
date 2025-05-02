@@ -8,13 +8,15 @@ const BluetoothPage = () => {
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [buttonState, setButtonState] = useState(null);
   const [history, setHistory] = useState([]);
-  const [debugLog, setDebugLog] = useState([]);
+  const [debugMessages, setDebugMessages] = useState([]);
   const dataCharRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
 
-  const log = (message) => {
+  const log = (...args) => {
     const timestamp = new Date().toLocaleTimeString();
-    setDebugLog((prev) => [`${timestamp} - ${message}`, ...prev.slice(0, 50)]);
-    console.log('[Bluetooth]', message);
+    const message = `${timestamp} - ${args.join(' ')}`;
+    setDebugMessages(prev => [message, ...prev.slice(0, 49)]); // Keep latest 50
+    console.log('[Bluetooth]', ...args);
   };
 
   const handleDisconnection = () => {
@@ -22,38 +24,34 @@ const BluetoothPage = () => {
     setConnectedDevice(null);
     dataCharRef.current = null;
     setButtonState(null);
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     log('Device disconnected');
   };
 
-  const handleDataReceived = (event) => {
-    const value = event.target.value;
-    const raw = [];
-    for (let i = 0; i < value.byteLength; i++) {
-      raw.push(value.getUint8(i));
-    }
-    log(`🔴 Raw Bytes: ${raw.join(', ')}`);
-
-    const text = new TextDecoder().decode(value);
-    log(`Received chunk: ${text}`);
-
-    // Try parse as number pair
-    const match = text.trim().match(/(\d+)\s+(\d+)/);
-    if (match) {
-      const x = parseInt(match[1], 10);
-      const y = parseInt(match[2], 10);
-      setButtonState(`Point: (${x}, ${y})`);
-      log(`✅ Parsed point: (${x}, ${y})`);
-    } else if (text.trim()) {
-      setButtonState(`Message: ${text.trim()}`);
-      log(`ℹ️ Message received: ${text.trim()}`);
+  const parseAndHandleValue = (value) => {
+    const decoder = new TextDecoder('utf-8');
+    const text = decoder.decode(value).trim();
+    log('Polled value:', text);
+    if (/^\d+$/.test(text)) {
+      setButtonState(text);
+      setHistory(prev => [`Received value: ${text}`, ...prev]);
+    } else {
+      setHistory(prev => [`Unknown data: ${text}`, ...prev]);
     }
   };
 
-  const setupNotifications = async (characteristic) => {
+  const setupPollingOnly = async (characteristic) => {
     dataCharRef.current = characteristic;
-    await characteristic.startNotifications();
-    characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
-    log('Notifications enabled');
+
+    pollingIntervalRef.current = setInterval(async () => {
+      if (!dataCharRef.current) return;
+      try {
+        const value = await dataCharRef.current.readValue();
+        parseAndHandleValue(value);
+      } catch (err) {
+        log('Polling error:', err.message);
+      }
+    }, 300);
   };
 
   const connectToDevice = async () => {
@@ -69,18 +67,19 @@ const BluetoothPage = () => {
       const service = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
       const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
 
-      await setupNotifications(characteristic);
-      setStatus('Connected - Waiting for Data');
+      await setupPollingOnly(characteristic);
+      setStatus('Connected - Polling for Data');
 
       device.addEventListener('gattserverdisconnected', handleDisconnection);
     } catch (err) {
-      log(`Connection failed: ${err.message}`);
+      log('Connection failed:', err.message);
       setStatus(`Connection failed: ${err.message}`);
     }
   };
 
   useEffect(() => {
     return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       if (connectedDevice && connectedDevice.gatt.connected) {
         connectedDevice.gatt.disconnect();
       }
@@ -95,17 +94,26 @@ const BluetoothPage = () => {
 
       {buttonState !== null && (
         <div style={{ marginTop: '20px' }}>
-          <p><strong>Output:</strong> {buttonState}</p>
+          <p><strong>Latest Value:</strong> {buttonState}</p>
         </div>
       )}
 
-      <div style={{ marginTop: '30px' }}>
-        <h4>Debug Console</h4>
-        <div style={{ backgroundColor: '#eee', padding: '10px', maxHeight: '300px', overflowY: 'auto', fontFamily: 'monospace' }}>
-          {debugLog.map((line, idx) => (
-            <div key={idx}>{line}</div>
-          ))}
+      {history.length > 0 && (
+        <div>
+          <h4>Data History</h4>
+          <ul>
+            {history.map((entry, idx) => (
+              <li key={idx}>{entry}</li>
+            ))}
+          </ul>
         </div>
+      )}
+
+      <div style={{ marginTop: '30px', backgroundColor: '#f3f3f3', padding: '10px', borderRadius: '6px' }}>
+        <h4>Debug Console</h4>
+        <pre style={{ height: '200px', overflowY: 'scroll', fontSize: '0.85em' }}>
+          {debugMessages.join('\n')}
+        </pre>
       </div>
     </div>
   );
