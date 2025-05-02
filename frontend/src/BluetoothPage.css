@@ -1,0 +1,59 @@
+.bluetooth-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+  }
+  
+  .status-display {
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+  
+  .coordinate-display {
+    background-color: #eef7ff;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    height: 150px;
+    overflow-y: auto;
+  }
+  
+  .coordinate-display pre {
+    font-family: monospace;
+    white-space: pre-wrap;
+  }
+  
+  .button-container {
+    display: flex;
+    gap: 10px;
+  }
+  
+  button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  
+  .connect-btn {
+    background-color: #4CAF50;
+    color: white;
+  }
+  
+  .disconnect-btn {
+    background-color: #f44336;
+    color: white;
+  }
+  
+  .test-btn {
+    background-color: #2196F3;
+    color: white;
+  }
+  
+  button:hover {
+    opacity: 0.9;
+  }
