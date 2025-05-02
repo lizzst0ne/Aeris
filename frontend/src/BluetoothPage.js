@@ -264,3 +264,5 @@ const BluetoothPage = () => {
     </div>
   );
 };
+
+export default BluetoothPage;
