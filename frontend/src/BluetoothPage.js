@@ -1,353 +1,289 @@
 import React, { useState, useEffect } from 'react';
 import './BluetoothPage.css';
+// bluetooth.js
 
-const BluetoothPage = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [device, setDevice] = useState(null);
-  const [server, setServer] = useState(null);
-  const [service, setService] = useState(null);
-  const [rxCharacteristic, setRxCharacteristic] = useState(null);
-  const [txCharacteristic, setTxCharacteristic] = useState(null);
-  const [coordinates, setCoordinates] = useState([]);
-  const [date, setDate] = useState({ month: 1, day: 1 });
-  const [status, setStatus] = useState('Disconnected');
-  const [dataBuffer, setDataBuffer] = useState('');
-  const [logMessages, setLogMessages] = useState([]);
-  const [isPolling, setIsPolling] = useState(false);
-  const [isReceiving, setIsReceiving] = useState(false);
-  
-  // UUID values for the BLE UART service and characteristics
-  // Using the Nordic UART Service UUIDs
-  const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-  const UART_TX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // TX from device perspective
-  const UART_RX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // RX from device perspective
+// Define our custom service and characteristic UUIDs (matching device)
+const CALENDAR_SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
+const CALENDAR_DATA_CHAR_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
-  // Add log message with timestamp
-  const addLog = (message) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogMessages(prev => [{ time: timestamp, msg: message }, ...prev.slice(0, 19)]);
-    console.log(`${timestamp}: ${message}`);
-  };
+// For backward compatibility (we'll try both approaches)
+const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const UART_TX_CHARACTERISTIC_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const UART_RX_CHARACTERISTIC_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-  // Connect to Bluetooth device
-  const connectBluetooth = async () => {
-    try {
-      addLog('Starting Bluetooth scan...');
-      setStatus('Scanning...');
-      
-      // Request Bluetooth device with specified services
-      const bluetoothDevice = await navigator.bluetooth.requestDevice({
-        filters: [
-          { namePrefix: 'very cool calendar' }
-        ],
-        optionalServices: [UART_SERVICE_UUID]
-      });
-      
-      setDevice(bluetoothDevice);
-      addLog(`Found device: ${bluetoothDevice.name}`);
-      setStatus('Device selected, connecting...');
-      
-      // Add event listener for disconnection
-      bluetoothDevice.addEventListener('gattserverdisconnected', () => {
-        setIsConnected(false);
-        setIsPolling(false);
-        setStatus('Device disconnected');
-        addLog('Device disconnected');
-      });
-      
-      // Connect to the GATT server
-      addLog('Connecting to GATT server...');
-      const gattServer = await bluetoothDevice.gatt.connect();
-      setServer(gattServer);
-      addLog('Connected to GATT server');
-      setStatus('Connected to GATT server, getting service...');
-      
-      // Get the UART service
-      addLog('Getting UART service...');
-      const uartService = await gattServer.getPrimaryService(UART_SERVICE_UUID);
-      setService(uartService);
-      addLog('Got UART service');
-      setStatus('Got UART service, getting characteristics...');
-      
-      // Get both characteristics
-      addLog('Getting TX characteristic...');
-      const txChar = await uartService.getCharacteristic(UART_TX_CHAR_UUID);
-      setTxCharacteristic(txChar);
-      addLog('Got TX characteristic');
-      
-      addLog('Getting RX characteristic...');
-      const rxChar = await uartService.getCharacteristic(UART_RX_CHAR_UUID);
-      setRxCharacteristic(rxChar);
-      addLog('Got RX characteristic');
-      
-      setIsConnected(true);
-      setStatus('Connected and ready');
-      addLog('Device fully connected and ready');
-      
-      // Start polling for data
-      setIsPolling(true);
+let currentDevice;
+let dataCharacteristic; // Our custom data characteristic
+let isConnected = false;
+let decoder = new TextDecoder();
 
-    } catch (error) {
-      console.error('Bluetooth connection error:', error);
-      addLog(`Error: ${error.message}`);
-      setStatus(`Error: ${error.message}`);
-    }
-  };
+// Store last received value to avoid duplicates
+let lastReceivedValue = null;
+
+// Safe logging function
+function safeLog(message, ...args) {
+  console.log(message, ...args);
+}
+
+// Event handler function for when we receive data
+function handleDataReceived(event) {
+  safeLog('Data received event triggered!');
   
-  // Disconnect from Bluetooth device
-  const disconnectBluetooth = async () => {
-    if (device && device.gatt.connected) {
-      setIsPolling(false);
-      await device.gatt.disconnect();
-      addLog('Manually disconnected from device');
-    }
-    setIsConnected(false);
-    setDevice(null);
-    setServer(null);
-    setService(null);
-    setTxCharacteristic(null);
-    setRxCharacteristic(null);
-    setStatus('Disconnected');
-  };
+  const value = event.target.value;
   
-  // Start the polling loop to read data
-  useEffect(() => {
-    let pollInterval;
-    
-    const pollData = async () => {
-      if (isPolling && rxCharacteristic) {
-        try {
-          const value = await rxCharacteristic.readValue();
-          if (value.byteLength > 0) {
-            const decoder = new TextDecoder('utf-8');
-            const decodedData = decoder.decode(value);
-            
-            // Only process if we actually got data
-            if (decodedData.trim().length > 0) {
-              addLog(`Received: ${decodedData.substring(0, 20)}${decodedData.length > 20 ? '...' : ''}`);
-              processIncomingData(decodedData);
-            }
-          }
-        } catch (error) {
-          addLog(`Polling error: ${error.message}`);
-          console.error('Polling error:', error);
-        }
-      }
-    };
-    
-    if (isPolling) {
-      addLog('Started polling for data');
-      pollInterval = setInterval(pollData, 500); // Poll every 500ms
-    }
-    
-    return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-        addLog('Stopped polling for data');
-      }
-    };
-  }, [isPolling, rxCharacteristic]);
+  // Display the raw buffer information for debugging
+  safeLog('Raw buffer received');
   
-  // Process incoming data
-  const processIncomingData = (data) => {
-    // Append the new data to our buffer
-    const newBuffer = dataBuffer + data;
-    setDataBuffer(newBuffer);
+  // Try to decode the data as text
+  try {
+    // First approach: read as number for button state
+    const dataView = new DataView(value.buffer);
+    const buttonState = dataView.getUint8(0);
+    safeLog('Decoded button state:', buttonState);
     
-    // Check for START marker
-    if (newBuffer.includes('START') && !isReceiving) {
-      addLog('Found START marker - beginning data collection');
-      setIsReceiving(true);
-      setCoordinates([]); // Clear previous coordinates
-      const newData = newBuffer.substring(newBuffer.indexOf('START') + 5);
-      setDataBuffer(newData);
+    // Check if this is the same as last value (to avoid duplicates from polling)
+    if (lastReceivedValue === buttonState.toString()) {
+      safeLog('Duplicate value detected, ignoring');
       return;
     }
     
-    // Check for STOP marker to finish coordinates
-    if (newBuffer.includes('STOP') && isReceiving) {
-      addLog('Found STOP marker - processing coordinates');
-      const parts = newBuffer.split('STOP');
-      const coordData = parts[0];
-      const afterStop = parts[1] || '';
-      
-      // Process the coordinate data
-      processCoordinateData(coordData);
-      
-      // Check if there's date data after STOP
-      if (afterStop && afterStop.match(/\d+,\d+/)) {
-        processDateData(afterStop);
-      }
-      
-      setIsReceiving(false);
-      setDataBuffer('');
-      addLog('Processing complete');
-      return;
-    }
+    // Store this as last received value
+    lastReceivedValue = buttonState.toString();
     
-    // If we're in receiving mode but haven't seen STOP yet, just update the buffer
-    if (isReceiving) {
-      setDataBuffer(newBuffer);
+    // Update the UI with the received data
+    document.getElementById('status').textContent = 'Status: DATA RECEIVED';
+    document.getElementById('receivedData').textContent = buttonState.toString();
+    
+    // Check if the received data is 0 or 1 and update the bit status
+    if (buttonState === 1) {
+      document.getElementById('bitStatus').textContent = "Bit Status: ON (1)";
+      document.getElementById('bitStatus').className = "on";
     } else {
-      // If not in receiving mode and data doesn't contain START, just clear it
-      setDataBuffer('');
+      document.getElementById('bitStatus').textContent = "Bit Status: OFF (0)";
+      document.getElementById('bitStatus').className = "off";
     }
-  };
-  
-  // Process coordinate data - expects format from your paste.txt file
-  const processCoordinateData = (data) => {
-    if (!data) return;
     
+    // Add to data history
+    const dataList = document.getElementById('dataHistory');
+    const listItem = document.createElement('li');
+    listItem.textContent = `${new Date().toLocaleTimeString()}: ${buttonState}`;
+    dataList.prepend(listItem);
+    
+    // Keep the list from getting too long
+    if (dataList.children.length > 10) {
+      dataList.removeChild(dataList.lastChild);
+    }
+  } catch (error) {
+    console.error('Error processing data:', error);
     try {
-      // Parse coordinates in format "index:[x,y],"
-      const regex = /(\d+):\[(\d+),(\d+)\],/g;
-      let match;
-      const newCoords = [];
-      
-      while ((match = regex.exec(data)) !== null) {
-        const index = parseInt(match[1], 10);
-        const x = parseInt(match[2], 10);
-        const y = parseInt(match[3], 10);
-        
-        if (!isNaN(index) && !isNaN(x) && !isNaN(y)) {
-          newCoords.push({ index, x, y });
-        }
+      // Fallback: try to decode as text
+      const textValue = decoder.decode(value);
+      safeLog('Fallback - decoded as text:', textValue);
+      document.getElementById('receivedData').textContent = textValue;
+    } catch (e) {
+      console.error('Failed to decode as text:', e);
+    }
+  }
+}
+
+// Helper for testing - simulates receiving data
+window.simulateBluetoothData = function(data) {
+  if (data !== '0' && data !== '1') {
+    console.error('Simulated data must be "0" or "1"');
+    return;
+  }
+  
+  // Create a sample ArrayBuffer with the button state
+  const buffer = new ArrayBuffer(1);
+  const view = new DataView(buffer);
+  view.setUint8(0, parseInt(data));
+  
+  // Create a fake event object
+  const mockEvent = {
+    target: {
+      value: {
+        buffer: buffer,
+        byteLength: 1
       }
-      
-      if (newCoords.length > 0) {
-        addLog(`Processed ${newCoords.length} coordinates`);
-        setCoordinates(prev => [...prev, ...newCoords]);
-      } else {
-        addLog('No valid coordinates found in data');
-      }
-    } catch (error) {
-      addLog(`Error processing coordinates: ${error.message}`);
-      console.error('Error processing coordinates:', error);
     }
   };
   
-  // Process date data - expects format "month,day"
-  const processDateData = (data) => {
-    try {
-      // Find first occurrence of month,day pattern
-      const dateMatch = data.match(/(\d+),(\d+)/);
-      
-      if (dateMatch) {
-        const month = parseInt(dateMatch[1], 10);
-        const day = parseInt(dateMatch[2], 10);
-        
-        if (!isNaN(month) && !isNaN(day)) {
-          addLog(`Processed date: ${month}/${day}`);
-          setDate({ month, day });
-        } else {
-          addLog('Found date format but values are invalid');
-        }
-      } else {
-        addLog('No valid date format found');
-      }
-    } catch (error) {
-      addLog(`Error processing date: ${error.message}`);
-      console.error('Error processing date:', error);
-    }
-  };
-  
-  // Function to send test data back to the device (if needed)
-  const sendTestData = async () => {
-    if (!isConnected || !txCharacteristic) return;
-    
-    try {
-      // Create an encoder for the data
-      const encoder = new TextEncoder();
-      
-      // Send test data
-      const data = 'TEST_DATA';
-      await txCharacteristic.writeValue(encoder.encode(data));
-      addLog(`Sent test data: ${data}`);
-      setStatus('Test data sent!');
-    } catch (error) {
-      console.error('Error sending data:', error);
-      addLog(`Send error: ${error.message}`);
-      setStatus(`Send error: ${error.message}`);
-    }
-  };
-  
-  // Clear received coordinates
-  const clearCoordinates = () => {
-    setCoordinates([]);
-    setDataBuffer('');
-    setIsReceiving(false);
-    addLog('Cleared all coordinates and data buffer');
-  };
-  
-  // For debugging - display received coordinates
-  const getCoordinatesDisplay = () => {
-    if (coordinates.length === 0) return 'No coordinates received yet';
-    
-    return coordinates.slice(-5).map((coord) => 
-      `Coord ${coord.index}: x=${coord.x}, y=${coord.y}`
-    ).join('\n');
-  };
-  
-  // Helper to display the current data buffer for debugging
-  const getBufferPreview = () => {
-    if (!dataBuffer || dataBuffer.length === 0) return 'Empty';
-    
-    const preview = dataBuffer.substring(0, 30);
-    return `${preview}${dataBuffer.length > 30 ? '...' : ''} (${dataBuffer.length} chars)`;
-  };
-  
-  return (
-    <div className="bluetooth-container">
-      <h1>Bluetooth Connection</h1>
-      
-      <div className="status-display">
-        <p>Status: {status}</p>
-        <p>Connected: {isConnected ? 'Yes' : 'No'}</p>
-        <p>Polling: {isPolling ? 'Active' : 'Inactive'}</p>
-        <p>Receiving Data: {isReceiving ? 'Yes' : 'No'}</p>
-        <p>Date: {date.month}/{date.day}</p>
-        <p>Coordinates Received: {coordinates.length}</p>
-        <p>Buffer: {getBufferPreview()}</p>
-      </div>
-      
-      <div className="coordinate-display">
-        <h3>Last 5 Coordinates:</h3>
-        <pre>{getCoordinatesDisplay()}</pre>
-      </div>
-      
-      <div className="button-container">
-        {!isConnected ? (
-          <button onClick={connectBluetooth} className="connect-btn">
-            Connect Bluetooth
-          </button>
-        ) : (
-          <>
-            <button onClick={disconnectBluetooth} className="disconnect-btn">
-              Disconnect
-            </button>
-            <button onClick={sendTestData} className="test-btn">
-              Send Test Data
-            </button>
-            <button onClick={clearCoordinates} className="clear-btn">
-              Clear Data
-            </button>
-          </>
-        )}
-      </div>
-      
-      <div className="log-container">
-        <h3>Debug Log</h3>
-        <div className="log-entries">
-          {logMessages.map((log, index) => (
-            <div key={index} className="log-entry">
-              <span className="log-time">{log.time}</span>
-              <span className="log-message">{log.msg}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  // Call the handleDataReceived function with our mock event
+  handleDataReceived(mockEvent);
 };
 
-export default BluetoothPage;
+async function connectToDevice() {
+  try {
+    safeLog('Starting Bluetooth connection attempt...');
+    
+    // Check if Web Bluetooth is supported
+    if (!navigator.bluetooth) {
+      console.error('Web Bluetooth API is not supported in this browser');
+      document.getElementById('message').textContent = 'Error: Web Bluetooth not supported in this browser';
+      return;
+    }
+    
+    // Request a Bluetooth device with our service UUIDs
+    safeLog('Requesting Bluetooth device...');
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [
+        { name: 'very cool calendar we made' }
+      ],
+      optionalServices: [CALENDAR_SERVICE_UUID, UART_SERVICE_UUID]
+    });
+
+    // Save the device object for later use
+    currentDevice = device;
+    
+    document.getElementById('message').textContent = 'Connecting to ' + device.name + '...';
+    safeLog('Selected device:', device.name);
+    
+    // Connect to the device's GATT server
+    safeLog('Connecting to GATT server...');
+    const server = await device.gatt.connect();
+    safeLog('Connected to GATT server');
+    
+    // First try to get the custom calendar service
+    try {
+      safeLog('Trying to get custom Calendar service...');
+      const calendarService = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
+      safeLog('Got Calendar service');
+      
+      // Get the data characteristic
+      safeLog('Getting data characteristic...');
+      dataCharacteristic = await calendarService.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
+      safeLog('Got data characteristic');
+      
+      // Set up data reception for our custom characteristic
+      await setupDataReception();
+    } catch (customServiceError) {
+      safeLog('Could not find custom service:', customServiceError.message);
+      safeLog('Falling back to UART service...');
+      
+      try {
+        // Fallback to UART service
+        const uartService = await server.getPrimaryService(UART_SERVICE_UUID);
+        safeLog('Got UART service');
+        
+        // Get TX characteristic
+        safeLog('Getting TX characteristic...');
+        dataCharacteristic = await uartService.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
+        safeLog('Got TX characteristic');
+        
+        // Set up data reception for UART characteristic
+        await setupDataReception();
+      } catch (uartError) {
+        throw new Error(`Failed to connect to either custom or UART service: ${uartError.message}`);
+      }
+    }
+    
+    // Handle disconnection
+    device.addEventListener('gattserverdisconnected', handleDisconnection);
+    
+  } catch (error) {
+    console.error('Connection error:', error);
+    document.getElementById('message').textContent = 'Failed to connect: ' + error.message;
+    document.getElementById('status').textContent = 'Status: Not Connected';
+    document.getElementById('status').className = '';
+  }
+}
+
+async function setupDataReception() {
+  safeLog('Setting up data reception...');
+  
+  // First approach: Try notifications
+  let notificationsSupported = false;
+  try {
+    if (dataCharacteristic.properties.notify) {
+      safeLog('Notification property exists - will try to use notifications');
+      
+      try {
+        await dataCharacteristic.startNotifications();
+        dataCharacteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+        safeLog('Notifications set up successfully');
+        notificationsSupported = true;
+      } catch (notifyError) {
+        safeLog('Error starting notifications:', notifyError.message);
+      }
+    } else {
+      safeLog('Notification property not supported on this characteristic');
+    }
+  } catch (error) {
+    safeLog('Error checking notification support:', error.message);
+  }
+  
+  // Second approach: Always use polling (even if notifications are working)
+  safeLog('Setting up polling as backup data reception method');
+  
+  // Try to do an initial read to check if characteristic is readable
+  try {
+    const initialValue = await dataCharacteristic.readValue();
+    safeLog('Initial read successful, value length:', initialValue.byteLength);
+    if (initialValue.byteLength > 0) {
+      handleDataReceived({target: {value: initialValue}});
+    }
+  } catch (readError) {
+    safeLog('Warning: Could not perform initial read:', readError.message);
+  }
+  
+  // Set up a polling interval (read the characteristic every 300ms)
+  window.pollingInterval = setInterval(async function() {
+    if (!dataCharacteristic || !isConnected) {
+      clearInterval(window.pollingInterval);
+      return;
+    }
+    
+    try {
+      const value = await dataCharacteristic.readValue();
+      if (value && value.byteLength > 0) {
+        handleDataReceived({target: {value: value}});
+      }
+    } catch (error) {
+      // Don't log every error to avoid flooding the console
+      if (error.message.includes('disconnected')) {
+        safeLog('Device disconnected during polling');
+        clearInterval(window.pollingInterval);
+      }
+    }
+  }, 300);
+  
+  // Mark as connected
+  isConnected = true;
+  
+  // Update connection status
+  document.getElementById('status').textContent = 'Status: Connected - Waiting for button press on device';
+  document.getElementById('status').className = 'connected';
+  
+  if (notificationsSupported) {
+    document.getElementById('message').textContent = `Connected to ${currentDevice.name} using notifications and polling`;
+  } else {
+    document.getElementById('message').textContent = `Connected to ${currentDevice.name} using polling (notifications not available)`;
+  }
+}
+
+function handleDisconnection(event) {
+  safeLog('Device disconnected');
+  document.getElementById('message').textContent = 'Device disconnected.';
+  document.getElementById('status').textContent = 'Status: Disconnected';
+  document.getElementById('status').className = 'disconnected';
+  
+  // Clear polling interval if it exists
+  if (window.pollingInterval) {
+    clearInterval(window.pollingInterval);
+    window.pollingInterval = null;
+    safeLog('Polling interval cleared');
+  }
+  
+  // Reset the characteristic variables
+  dataCharacteristic = null;
+  lastReceivedValue = null;
+  isConnected = false;
+}
+
+// Initialize event listeners when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  safeLog('DOM content loaded, setting up event listeners');
+  
+  document.getElementById('connectButton').addEventListener('click', connectToDevice);
+  
+  safeLog('Bluetooth.js initialization complete - custom service version');
+});
