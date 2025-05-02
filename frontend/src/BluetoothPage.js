@@ -10,6 +10,8 @@ const BluetoothPage = () => {
   const [history, setHistory] = useState([]);
   const dataCharRef = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const bufferRef = useRef('');
+  const parsedPointsRef = useRef([]);
 
   const log = (...args) => console.log('[Bluetooth]', ...args);
 
@@ -23,47 +25,40 @@ const BluetoothPage = () => {
   };
 
   const handleDataReceived = (event) => {
-    const bufferRef = useRef('');
-    const parsedPointsRef = useRef([]);
+    const value = event.target.value;
+    const textDecoder = new TextDecoder('utf-8');
+    const chunk = textDecoder.decode(value);
 
-    const handleDataReceived = (event) => {
-        const value = event.target.value;
-        const textDecoder = new TextDecoder('utf-8');
-        const chunk = textDecoder.decode(value);
+    bufferRef.current += chunk;
+    const lines = bufferRef.current.split('\n');
+    bufferRef.current = lines.pop(); // keep incomplete line
 
-        bufferRef.current += chunk;
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
 
-        // Split by newline to process full lines
-        const lines = bufferRef.current.split('\n');
-        bufferRef.current = lines.pop(); // last (possibly incomplete) line saved
-
-        for (let line of lines) {
-            line = line.trim();
-            if (!line) continue;
-
-            if (line === 'START') {
-            parsedPointsRef.current = [];
-            setStatus('Receiving Data...');
-            } else if (line === 'STOP') {
-            setStatus('Coordinate Stream Complete');
-            } else if (line === 'END') {
-            log('Data stream ended');
-            setHistory((prev) => [
-                `Received ${parsedPointsRef.current.length} points`,
-                ...prev,
-            ]);
-            parsedPointsRef.current = [];
-            } else if (line.includes(',')) {
-            log('Received date:', line);
-            } else if (/^\d+\s+\d+$/.test(line)) {
-            const [x, y] = line.split(' ').map(Number);
-            parsedPointsRef.current.push({ x, y });
-            setButtonState(`Point: (${x}, ${y})`);
-            } else {
-            log('Unknown line:', line);
-            }
-        }
-    };
+      if (line === 'START') {
+        parsedPointsRef.current = [];
+        setStatus('Receiving Data...');
+      } else if (line === 'STOP') {
+        setStatus('Coordinate Stream Complete');
+      } else if (line === 'END') {
+        log('Data stream ended');
+        setHistory((prev) => [
+          `Received ${parsedPointsRef.current.length} points`,
+          ...prev,
+        ]);
+        parsedPointsRef.current = [];
+      } else if (line.includes(',')) {
+        log('Received date:', line);
+      } else if (/^\d+\s+\d+$/.test(line)) {
+        const [x, y] = line.split(' ').map(Number);
+        parsedPointsRef.current.push({ x, y });
+        setButtonState(`Point: (${x}, ${y})`);
+      } else {
+        log('Unknown line:', line);
+      }
+    }
   };
 
   const setupNotificationsAndPolling = async (characteristic) => {
@@ -94,7 +89,7 @@ const BluetoothPage = () => {
     try {
       const device = await navigator.bluetooth.requestDevice({
         filters: [{ name: 'very cool calendar we made' }],
-        optionalServices: [CALENDAR_SERVICE_UUID]
+        optionalServices: [CALENDAR_SERVICE_UUID],
       });
       setConnectedDevice(device);
       setStatus('Connecting...');
@@ -130,7 +125,7 @@ const BluetoothPage = () => {
 
       {buttonState !== null && (
         <div style={{ marginTop: '20px' }}>
-          <p><strong>Button State:</strong> {buttonState === 1 ? 'ON (1)' : 'OFF (0)'}</p>
+          <p><strong>Button State:</strong> {buttonState}</p>
         </div>
       )}
 
