@@ -100,7 +100,7 @@ int numEntriesSame;
 
 // Timing variables for send control
 unsigned long lastCoordSendTime = 0;
-const unsigned long COORD_SEND_INTERVAL = 100; // Send coordinates every 100ms
+const unsigned long COORD_SEND_INTERVAL = 10; // Send coordinates every 100ms
 unsigned long messageCounter = 0; // To ensure each message is unique
 unsigned long lastButtonPress = 0;
 const unsigned long debounceTime = 300; // Debounce time for button
@@ -325,7 +325,7 @@ void loop() {
       // Only send if we have valid coordinates to share
       if (avg_x != 0 && avg_y != 0) {
         char coordBuffer[20];
-        sprintf(coordBuffer, "%lu:%d,%d", messageCounter++, coordz[0][0], coordz[0][1]);
+        sprintf(coordBuffer, "%d,%d", coordz[0][0], coordz[0][1]);
         sendMessage(coordBuffer);
       }
     }
@@ -503,7 +503,7 @@ void sendData(){
     char stopMsg[20];
     sprintf(stopMsg, "STOP-%lu", messageCounter++);
     sendMessage(stopMsg);
-    delay(50);  // Small delay between messages
+    delay(10);  // Small delay between messages
     
     // Save date to internal storage and send it
     if(InternalFS.exists(DATES)){

@@ -133,7 +133,7 @@ const BluetoothPage = () => {
           handleDisconnection();
         }
       }
-    }, 500); // Poll every 500ms
+    }, 10); // Poll every 500ms
   };
 
   // Connect to the Adafruit device
