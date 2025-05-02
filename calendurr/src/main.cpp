@@ -325,7 +325,7 @@ void loop() {
       // Only send if we have valid coordinates to share
       if (avg_x != 0 && avg_y != 0) {
         char coordBuffer[20];
-        sprintf(coordBuffer, "%d,%d", coordz[0][0], coordz[0][1]);
+        sprintf(coordBuffer, "C:%d,%d", coordz[0][0], coordz[0][1]);
         sendMessage(coordBuffer);
       }
     }
@@ -520,14 +520,14 @@ void sendData(){
       char dateMsg[20];
       sprintf(dateMsg, "DATE-%lu:%s", messageCounter++, datBuffer);
       sendMessage(dateMsg);
-      delay(50);
+      delay(10);
     }
     
     // Send "END" marker with timestamp
     char endMsg[20];
     sprintf(endMsg, "END-%lu", messageCounter++);
     sendMessage(endMsg);
-    delay(50);
+    delay(10);
     
     // Send "START" marker for next data set
     char startMsg[20];
