@@ -117,27 +117,56 @@
    Bluefruit.Advertising.start(0);                // 0 = Don't stop advertising 
  }
  
+
+
+
  void loop() {
+  // Check if send button is pressed
   if(!digitalRead(SEND_BUTTON)) {
     unsigned long currentTime = millis();
-  
+
     if (currentTime - lastButtonPress > debounceTime) {
       lastButtonPress = currentTime;
-  
-      const char* testMsg = "123 456\n"; // Send newline-terminated test string
-      dataCharacteristic.write((const uint8_t*)testMsg, strlen(testMsg));
-  
+
+      // Increment value to ensure it's always different
+      buttonState = (buttonState + 1) % 256;
+
+      // Write to characteristic
+      dataCharacteristic.write(&buttonState, 1);
+
+      // Log to serial
+      Serial.print("🔵 Data sent over BLE: ");
+      Serial.println(buttonState);
+
+      // Show on OLED
       display.clearDisplay();
       display.setCursor(0, 0);
-      display.println("Sent test data");
+      display.println("Data Sent:");
+      display.setCursor(0, 10);
+      display.print("Value: ");
+      display.println(buttonState);
       display.display();
-  
-      while(!digitalRead(SEND_BUTTON)) {
-        delay(10);
+
+      while (!digitalRead(SEND_BUTTON)) delay(10);
+    }
+  }
+
+  // BLE disconnect
+  if (!digitalRead(BLE_BUTTON)) {
+    int timeStart = millis();
+    while (!digitalRead(BLE_BUTTON)) {
+      if (millis() - timeStart >= 2200) {
+        display.clearDisplay();
+        display.setCursor(0, 0);
+        display.println("Disconnecting...");
+        display.display();
+        Bluefruit.disconnect(Bluefruit.connHandle());
+        break;
       }
     }
   }
 }
+
 
 
 
