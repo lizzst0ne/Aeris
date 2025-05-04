@@ -254,7 +254,7 @@ return (
         style={{ 
           padding: '8px 16px',
           backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
-          color: 'white',
+          color: 'blue',
           border: 'none',
           borderRadius: '4px',
           cursor: coordinates.length === 0 ? 'default' : 'pointer'
