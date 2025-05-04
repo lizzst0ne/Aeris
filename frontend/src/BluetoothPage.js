@@ -174,44 +174,44 @@ const BluetoothPage = () => {
     }
   };
 
-  // const saveCoordinatesToServer = async () => {
-  //   if (coordinates.length === 0) {
-  //     log('No coordinates to save');
-  //     return;
-  //   }
+  const saveCoordinatesToServer = async () => {
+    if (coordinates.length === 0) {
+      log('No coordinates to save');
+      return;
+    }
     
-  //   try {
-  //     setSavingStatus('saving');
-  //     log('Saving coordinates to server...');
+    try {
+      setSavingStatus('saving');
+      log('Saving coordinates to server...');
       
-  //     const payload = {
-  //       fileName: 'coordz.txt',
-  //       date: dateInfo || 'unknown',
-  //       coordinates: coordinates,
-  //       sessionState: sessionStateRef.current
-  //     };
+      const payload = {
+        fileName: 'coordz.txt',
+        date: dateInfo || 'unknown',
+        coordinates: coordinates,
+        sessionState: sessionStateRef.current
+      };
       
-  //     const response = await fetch(SAVE_COORDINATES_ENDPOINT, {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify(payload),
-  //     });
+      const response = await fetch(SAVE_COORDINATES_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
       
-  //     if (response.ok) {
-  //       const result = await response.json();
-  //       log(`Coordinates saved to server: ${result.message}`);
-  //       setSavingStatus('success');
-  //     } else {
-  //       const error = await response.text();
-  //       throw new Error(`Server responded with: ${error}`);
-  //     }
-  //   } catch (err) {
-  //     log(`Error saving to server: ${err.message}`);
-  //     setSavingStatus('error');
-  //   }
-  // };
+      if (response.ok) {
+        const result = await response.json();
+        log(`Coordinates saved to server: ${result.message}`);
+        setSavingStatus('success');
+      } else {
+        const error = await response.text();
+        throw new Error(`Server responded with: ${error}`);
+      }
+    } catch (err) {
+      log(`Error saving to server: ${err.message}`);
+      setSavingStatus('error');
+    }
+  };
 
   // Clean up resources when component unmounts
   useEffect(() => {
