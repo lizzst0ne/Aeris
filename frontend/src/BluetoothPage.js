@@ -4,6 +4,26 @@ import React, { useState, useEffect, useRef } from 'react';
 const CALENDAR_SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
 const CALENDAR_DATA_CHAR_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
+// Helper function to download data as a text file
+const downloadAsFile = (data, filename) => {
+  const text = data;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  
+  // Clean up
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
+};
+
+
 // Helper function to visualize data points
 const formatCoordinateData = (coords) => {
   if (!coords || coords.length === 0) return "No data collected";
@@ -95,6 +115,37 @@ const BluetoothPage = () => {
     }
   };
 
+   // Save coordinates to a text file
+   const saveCoordinatesToFile = () => {
+    if (coordinates.length === 0) {
+      log('No coordinates to save');
+      return;
+    }
+    
+    try {
+      
+      // Build the content of the file
+      let content = `Calendar Coordinates Data\n`;
+      content += `Date: ${dateInfo || 'Not provided'}\n`;
+      content += `Total Coordinates: ${coordinates.length}\n\n`;
+      
+      // Add all coordinates
+      coordinates.forEach(coord => {
+        content += `${coord.x},${coord.y}\n`;
+      });
+      
+      // Generate filename with timestamp keeping timestamp for now for different file making
+      const timestamp = new Date().toISOString().replace(/:/g, '-').replace('T', '_').split('.')[0];
+      const filename = `coordz${timestamp}.txt`;
+      
+      // Download the file
+      downloadAsFile(content, filename);
+      log(`Coordinates saved to file: ${filename}`);
+    } catch (err) {
+      log(`Error saving coordinates: ${err.message}`);
+    }
+  };
+
   // Handle data received from the BLE characteristic
   const handleDataReceived = (value) => {
     try {
@@ -174,64 +225,14 @@ const BluetoothPage = () => {
     }
   };
 
-  const saveCoordinatesToServer = async () => {
-    if (coordinates.length === 0) {
-      log('No coordinates to save');
-      return;
-    }
+ 
+// Render the UI
+return (
+  <div style={{ padding: '20px' }}>
+    <h2>Bluetooth Calendar</h2>
+    <p><strong>Status:</strong> {status}</p>
     
-    try {
-      setSavingStatus('saving');
-      log('Saving coordinates to server...');
-      
-      const payload = {
-        fileName: 'coordz.txt',
-        date: dateInfo || 'unknown',
-        coordinates: coordinates,
-        sessionState: sessionStateRef.current
-      };
-      
-      const response = await fetch(SAVE_COORDINATES_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        log(`Coordinates saved to server: ${result.message}`);
-        setSavingStatus('success');
-      } else {
-        const error = await response.text();
-        throw new Error(`Server responded with: ${error}`);
-      }
-    } catch (err) {
-      log(`Error saving to server: ${err.message}`);
-      setSavingStatus('error');
-    }
-  };
-
-  // Clean up resources when component unmounts
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-      
-      if (connectedDevice && connectedDevice.gatt.connected) {
-        connectedDevice.gatt.disconnect();
-      }
-    };
-  }, [connectedDevice]);
-
-  // Render the UI
-  return (
-    <div style={{ padding: '20px' }}>
-      <h2>Bluetooth Calendar</h2>
-      <p><strong>Status:</strong> {status}</p>
-      
+    <div style={{ display: 'flex', gap: '10px' }}>
       <button 
         onClick={connectToDevice}
         disabled={connectedDevice !== null}
@@ -247,62 +248,80 @@ const BluetoothPage = () => {
         Connect to Calendar Device
       </button>
 
-      {/* Data Display Section */}
-      {currentData && (
-        <div style={{ marginTop: '20px' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-            {/* Current Info Panel */}
-            <div style={{ 
-              flex: '1 1 300px', 
-              marginRight: '20px', 
-              padding: '15px',
-              backgroundColor: '#f5f5f5',
-              borderRadius: '8px',
-              marginBottom: '15px'
-            }}>
-              <h3>Current Data</h3>
-              <p><strong>Last Message:</strong> {currentData}</p>
-              <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
-              <p><strong>Session State:</strong> {sessionStateRef.current}</p>
-              <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
-            </div>
+      <button 
+        onClick={manualDownload}
+        disabled={coordinates.length === 0}
+        style={{ 
+          padding: '8px 16px',
+          backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: coordinates.length === 0 ? 'default' : 'pointer'
+        }}
+      >
+        Save Coordinates to File
+      </button>
+    </div>
 
-            {/* Message History Panel */}
-            <div style={{
-              flex: '1 1 300px',
-              padding: '15px',
-              backgroundColor: '#f5f5f5',
-              borderRadius: '8px',
-              marginBottom: '15px'
-            }}>
-              <h3>Message History</h3>
-              <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
-                {messageHistory.map((entry, idx) => (
-                  <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
-                ))}
-              </ul>
-            </div>
+    {/* Data Display Section */}
+    {currentData && (
+      <div style={{ marginTop: '20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+          {/* Current Info Panel */}
+          <div style={{ 
+            flex: '1 1 300px', 
+            marginRight: '20px', 
+            padding: '15px',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '8px',
+            marginBottom: '15px'
+          }}>
+            <h3>Current Data</h3>
+            <p><strong>Last Message:</strong> {currentData}</p>
+            <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
+            <p><strong>Session State:</strong> {sessionStateRef.current}</p>
+            <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
+            {sessionStartTime && <p><strong>Started:</strong> {sessionStartTime.toLocaleTimeString()}</p>}
+            {sessionEndTime && <p><strong>Stopped:</strong> {sessionEndTime.toLocaleTimeString()}</p>}
           </div>
 
-          {/* Debug Console */}
-          <div style={{ marginTop: '20px' }}>
-            <h3>Debug Console</h3>
-            <pre style={{ 
-              background: '#333', 
-              color: '#f3f3f3',
-              padding: '10px', 
-              height: '200px', 
-              overflowY: 'scroll',
-              fontFamily: 'monospace',
-              borderRadius: '4px'
-            }}>
-              {debugLog.map((line, i) => <div key={i}>{line}</div>)}
-            </pre>
+          {/* Message History Panel */}
+          <div style={{
+            flex: '1 1 300px',
+            padding: '15px',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '8px',
+            marginBottom: '15px'
+          }}>
+            <h3>Message History</h3>
+            <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
+              {messageHistory.map((entry, idx) => (
+                <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
+              ))}
+            </ul>
           </div>
         </div>
-      )}
-    </div>
-  );
+
+        {/* Debug Console */}
+        <div style={{ marginTop: '20px' }}>
+          <h3>Debug Console</h3>
+          <pre style={{ 
+            background: '#333', 
+            color: '#f3f3f3',
+            padding: '10px', 
+            height: '200px', 
+            overflowY: 'scroll',
+            fontFamily: 'monospace',
+            borderRadius: '4px'
+          }}>
+            {debugLog.map((line, i) => <div key={i}>{line}</div>)}
+          </pre>
+        </div>
+      </div>
+    )}
+  </div>
+);
 };
 
 export default BluetoothPage;
