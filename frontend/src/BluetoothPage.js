@@ -61,6 +61,7 @@ const BluetoothPage = () => {
     if (data.includes('STOP-')) {
       sessionStateRef.current = 'waiting_for_date';
       log(`Data collection stopped: ${data}`);
+      log(`${coordinates}`);
       return;
     }
     
