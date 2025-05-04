@@ -4,40 +4,41 @@ import { onAuthStateChanged } from 'firebase/auth';
 import GoogleLoginButton from './GoogleLoginButton';
 import CalendarComponent from './CalendarComponent';
 
-const util = require('util');
-const fs = require('fs/promises');
-const exec = util.promisify(require('child_process').exec);
-const axios = require('axios');
+// const util = require('util');
+// const fs = require('fs/promises');
+// const exec = util.promisify(require('child_process').exec);
+// const axios = require('axios');
 
-(async () => {
-    //capture frame
-    //will have to change this later to how WE're gonna get image
-    await exec(
-        'ffmpeg -y -f video4linux -s 1280x720' +
-        '-i /dev/video1- frames 1 code.jpg'
-    );
+// (async () => {
+//     //capture frame
+    
 
-    //convert to base 64
-    const image = await fs.readFile('code.jpg');
-    const base64 = image.toString('base64');
+//     await exec(
+//         'ffmpeg -y -f video4linux -s 1280x720' +
+//         '-i /dev/video1- frames 1 code.jpg'
+//     );
 
-    const url = 
-      'https://vision.googleapis.com/v1/images:annotate' +
-      '?key=${process.env.gkey}' ;
+//     //convert to base 64
+//     const image = await fs.readFile('code.jpg');
+//     const base64 = image.toString('base64');
 
-    const results = await axios
-      .post(url, {
-          requests: [{
-              image: {
-                  content: base64
-              },
-              features: [{
-                  type:'DOCUMENT_TEXT_DETECTION'
-              }]
-          }]
-      });
-    const code = results.data.responses[0].fullTextAnnotation.text;
-})();
+//     const url = 
+//       'https://vision.googleapis.com/v1/images:annotate' +
+//       '?key=${process.env.gkey}' ;
+
+//     const results = await axios
+//       .post(url, {
+//           requests: [{
+//               image: {
+//                   content: base64
+//               },
+//               features: [{
+//                   type:'DOCUMENT_TEXT_DETECTION'
+//               }]
+//           }]
+//       });
+//     const code = results.data.responses[0].fullTextAnnotation.text;
+// })();
 
 // [ADDED] React Router imports
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
