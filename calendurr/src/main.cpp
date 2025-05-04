@@ -386,7 +386,17 @@ void readSensor(){
 
           // average the coordinates with up to 5 of the most recent averages
           if(avg_x != 0 && avg_y != 0){
-            // keep track of previous averages
+            /*----------------------------------------------------------*/
+            /* - keep track of the previous reading's averages -        */
+            /*                                                          */
+            /* before the averaging of the current loop:                */
+            /* - filtered_x/y holds the current value                   */
+            /* - avg_x/y holds the previous average                     */ 
+            /* - last_avg_x/y holds the average from two loops ago      */
+            /* - last_avg_x/y_2 holds the average from three loops ago  */
+            /* - last_avg_x/y_3 holds the average from four loops ago   */
+            /* - last_avg_x/y_4 holds the average from five loops ago   */
+            /*----------------------------------------------------------*/
             temp_x = avg_x; 
             temp_y = avg_y;
             temp_x_2 = last_avg_x; 
