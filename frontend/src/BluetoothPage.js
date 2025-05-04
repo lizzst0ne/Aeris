@@ -10,33 +10,6 @@ const formatCoordinateData = (coords) => {
   return `${coords.length} points collected`;
 };
 
-// Helper function to generate file content from coordinates
-const generateFileContent = (coordinates) => {
-  if (!coordinates || coordinates.length === 0) {
-    return "";
-  }
-  
-  return coordinates.map(coord => `[${coord.x},${coord.y}],`).join('\n');
-};
-
-// Helper function to download data as a file
-const downloadFile = (content, filename = "coordinates.txt", contentType = "text/plain") => {
-  const blob = new Blob([content], { type: contentType });
-  const url = URL.createObjectURL(blob);
-  
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  
-  // Clean up
-  setTimeout(() => {
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, 100);
-};
-
 const BluetoothPage = () => {
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
@@ -45,14 +18,12 @@ const BluetoothPage = () => {
   const [dateInfo, setDateInfo] = useState(null);
   const [messageHistory, setMessageHistory] = useState([]);
   const [debugLog, setDebugLog] = useState([]);
-  const [fileGenerated, setFileGenerated] = useState(false);
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const lastValueRef = useRef('');
   const sessionStateRef = useRef('idle'); // idle, collecting, completed
-  const coordinatesRef = useRef([]);
 
   // Helper for adding to debug log
   const log = (msg) => {
@@ -69,7 +40,6 @@ const BluetoothPage = () => {
     dataCharRef.current = null;
     setCurrentData(null);
     sessionStateRef.current = 'idle';
-    setFileGenerated(false);
     
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -78,38 +48,19 @@ const BluetoothPage = () => {
     log('Device disconnected');
   };
 
-  // Handle file generation when STOP is received
-  const handleStopReceived = () => {
-    if (coordinatesRef.current.length > 0 && !fileGenerated) {
-      const content = generateFileContent(coordinatesRef.current);
-      const filename = `coordinates_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
-      
-      downloadFile(content, filename);
-      setFileGenerated(true);
-      log(`Generated file with ${coordinatesRef.current.length} coordinates`);
-    } else if (fileGenerated) {
-      log('File already generated for this session');
-    } else {
-      log('No coordinates to export');
-    }
-  };
-
   // Process received data based on message format
   const processData = (data) => {
     // Check for control messages (START, STOP, END)
     if (data.includes('START-')) {
       sessionStateRef.current = 'collecting';
-      coordinatesRef.current = [];
-      setCoordinates([]);
-      setFileGenerated(false);
       log(`New data collection session started: ${data}`);
+      setCoordinates([]);
       return;
     }
     
     if (data.includes('STOP-')) {
       sessionStateRef.current = 'waiting_for_date';
       log(`Data collection stopped: ${data}`);
-      handleStopReceived(); // Generate and download file
       return;
     }
     
@@ -136,9 +87,7 @@ const BluetoothPage = () => {
         const [x, y] = coordData.split(',').map(Number);
         
         if (!isNaN(x) && !isNaN(y)) {
-          const newCoord = { x, y };
-          coordinatesRef.current = [...coordinatesRef.current, newCoord];
-          setCoordinates(coordinatesRef.current);
+          setCoordinates(prev => [...prev, { x, y }]);
           log(`Coordinate received: x=${x}, y=${y}`);
         }
       }
@@ -168,23 +117,10 @@ const BluetoothPage = () => {
     }
   };
 
-  // Manual export function (for UI button)
-  const handleManualExport = () => {
-    if (coordinatesRef.current.length > 0) {
-      const content = generateFileContent(coordinatesRef.current);
-      const filename = `coordinates_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
-      
-      downloadFile(content, filename);
-      log(`Manually exported ${coordinatesRef.current.length} coordinates`);
-    } else {
-      log('No coordinates to export');
-    }
-  };
-
   // Set up polling to regularly read the characteristic value
   const setupPolling = async (characteristic) => {
     dataCharRef.current = characteristic;
-    log('Polling started (200ms interval)'); // Reduced from 500ms to 200ms for speed
+    log('Polling started (500ms interval)');
 
     pollingIntervalRef.current = setInterval(async () => {
       try {
@@ -197,7 +133,7 @@ const BluetoothPage = () => {
           handleDisconnection();
         }
       }
-    }, 200); // Poll every 200ms for better responsiveness
+    }, 10); // Poll every 10ms
   };
 
   // Connect to the Adafruit device
@@ -225,20 +161,9 @@ const BluetoothPage = () => {
       const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
       log('Found data characteristic');
 
-      // Try to use notifications if supported (more efficient than polling)
-      try {
-        await characteristic.startNotifications();
-        characteristic.addEventListener('characteristicvaluechanged', (event) => {
-          handleDataReceived(event.target.value);
-        });
-        log('Notifications enabled (efficient mode)');
-      } catch (err) {
-        // Fall back to polling if notifications aren't supported
-        log('Notifications not supported, using polling fallback');
-        await setupPolling(characteristic);
-      }
-
-      setStatus('Connected - Receiving Data');
+      // Set up polling for data
+      await setupPolling(characteristic);
+      setStatus('Connected - Polling for Data');
 
       // Listen for disconnection events
       device.addEventListener('gattserverdisconnected', handleDisconnection);
@@ -267,37 +192,20 @@ const BluetoothPage = () => {
       <h2>Bluetooth Calendar</h2>
       <p><strong>Status:</strong> {status}</p>
       
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <button 
-          onClick={connectToDevice}
-          disabled={connectedDevice !== null}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: connectedDevice ? '#cccccc' : '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: connectedDevice ? 'default' : 'pointer'
-          }}
-        >
-          Connect to Calendar Device
-        </button>
-        
-        <button
-          onClick={handleManualExport}
-          disabled={coordinates.length === 0}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: coordinates.length === 0 ? 'default' : 'pointer'
-          }}
-        >
-          Export Coordinates
-        </button>
-      </div>
+      <button 
+        onClick={connectToDevice}
+        disabled={connectedDevice !== null}
+        style={{ 
+          padding: '8px 16px',
+          backgroundColor: connectedDevice ? '#cccccc' : '#4CAF50',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: connectedDevice ? 'default' : 'pointer'
+        }}
+      >
+        Connect to Calendar Device
+      </button>
 
       {/* Data Display Section */}
       {currentData && (
@@ -317,9 +225,6 @@ const BluetoothPage = () => {
               <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
               <p><strong>Session State:</strong> {sessionStateRef.current}</p>
               <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
-              {fileGenerated && (
-                <p style={{ color: '#4CAF50' }}><strong>File Generated:</strong> Yes</p>
-              )}
             </div>
 
             {/* Message History Panel */}
