@@ -74,7 +74,7 @@ function App() {
           {/*  [ADDED] Button to go to Bluetooth Page */}
           <div>
               <Link to="/bluetooth">
-                <button className="bt-button">Go to Bluetooth Page</button>
+                <button style="background-color: #D2D2F4; border: none;">Go to Bluetooth Page</button>
               </Link>
 
               {user ? (
