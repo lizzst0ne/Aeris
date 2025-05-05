@@ -73,9 +73,12 @@ function App() {
           <h1>Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
           <div>
+            <div class="bt-button">
               <Link to="/bluetooth">
-                <button style="background-color: #D2D2F4; border: none;">Go to Bluetooth Page</button>
+                <button>Go to Bluetooth Page</button>
               </Link>
+            </div>
+              
 
               {user ? (
                 <div className="user-info">
