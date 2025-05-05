@@ -70,9 +70,9 @@ function App() {
     <Router>
       <div className="app">
         <header>
-          <h1>Google Calendar Integration</h1>
+          <h1>Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
-          <container style="gap: 2em;">
+          {/* <container style="gap: 2em;"> */}
               <Link to="/bluetooth">
                 <button style={{ marginRight: '1rem' }}>Go to Bluetooth Page</button>
               </Link>
@@ -86,7 +86,7 @@ function App() {
               ) : (
                 <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
               )}
-          </container>
+          {/* </container> */}
 
         </header>
 
