@@ -282,8 +282,6 @@ return (
             <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
             <p><strong>Session State:</strong> {sessionStateRef.current}</p>
             <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
-            {sessionStartTime && <p><strong>Started:</strong> {sessionStartTime.toLocaleTimeString()}</p>}
-            {sessionEndTime && <p><strong>Stopped:</strong> {sessionEndTime.toLocaleTimeString()}</p>}
           </div>
 
           {/* Message History Panel */}
