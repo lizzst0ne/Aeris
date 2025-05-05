@@ -41,9 +41,13 @@ const createBMPFile = (coordinates, width = 800, height = 600, lineThickness = 2
     // Stroke the path
     ctx.stroke();
   }
-  
-  // Convert canvas to BMP data
-  return canvasToBMP(canvas);
+
+  // Return both the canvas and the BMP data
+  return {
+    canvas,
+    bmpBlob: canvasToBMP(canvas),
+    previewUrl: canvas.toDataURL('image/png')
+  };
 };
 
 // Function to convert canvas to BMP file format
@@ -117,17 +121,6 @@ const canvasToBMP = (canvas) => {
   return new Blob([buffer], { type: 'image/bmp' });
 };
 
-// Helper function to download BMP file
-const downloadBMP = (blob, fileName = 'calendar-data.bmp') => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
 
 const BluetoothPage = () => {
   const [status, setStatus] = useState('Not Connected');
@@ -299,7 +292,7 @@ const BluetoothPage = () => {
     }
   };
 
-  // Generate BMP file and download it
+  // Generate BMP file
   const handleGenerateBMP = () => {
     if (coordinates.length === 0) {
       log('No coordinates available to generate BMP');
@@ -308,55 +301,38 @@ const BluetoothPage = () => {
     
     try {
       log(`Generating BMP with ${coordinates.length} coordinates (${imageWidth}x${imageHeight})...`);
-      const bmpBlob = createBMPFile(coordinates, imageWidth, imageHeight);
+      const result = createBMPFile(coordinates, imageWidth, imageHeight);
       
-      // Generate file name with date if available
-      const fileName = dateInfo 
-        ? `calendar-${dateInfo.replace(',', '-')}.bmp` 
-        : `calendar-${new Date().toISOString().slice(0,10)}.bmp`;
+      // Store BMP blob in state for later use with Google Vision API
+      setBmpData(result.bmpBlob);
       
-      downloadBMP(bmpBlob, fileName);
-      log(`BMP file generated and download initiated: ${fileName}`);
+      // Update the preview
+      setCanvasPreview(result.previewUrl);
+      
+      log(`BMP generated and ready for Vision API: ${result.bmpBlob.size} bytes`);
+      
+      // For browser testing, you can convert the blob to Base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result;
+        log(`BMP Base64 data (first 100 chars): ${base64data.substring(0, 100)}...`);
+      };
+      reader.readAsDataURL(result.bmpBlob);
+      
     } catch (err) {
       log(`Error generating BMP: ${err.message}`);
     }
   };
   
-  // Update canvas preview with current coordinates
+  //update cancas preview with current coords
   const updateCanvasPreview = () => {
     if (coordinates.length === 0) return;
     
     try {
-      // Create a canvas element to preview the BMP
-      const canvas = document.createElement('canvas');
-      canvas.width = imageWidth;
-      canvas.height = imageHeight;
-      const ctx = canvas.getContext('2d');
-      
-      // White background
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, imageWidth, imageHeight);
-      
-      // Draw black lines connecting coordinates
-      ctx.strokeStyle = 'black';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      
-      // Start from first point
-      if (coordinates.length > 0) {
-        ctx.moveTo(coordinates[0].x, coordinates[0].y);
-        
-        // Connect all remaining points
-        for (let i = 1; i < coordinates.length; i++) {
-          ctx.lineTo(coordinates[i].x, coordinates[i].y);
-        }
-        
-        ctx.stroke();
-      }
-      
-      // Convert to data URL for display
-      const dataURL = canvas.toDataURL('image/png');
-      setCanvasPreview(dataURL);
+      // Generate BMP and update preview in one step
+      const result = createBMPFile(coordinates, imageWidth, imageHeight);
+      setCanvasPreview(result.previewUrl);
+      setBmpData(result.bmpBlob);
       log('Canvas preview updated');
     } catch (err) {
       log(`Error updating canvas preview: ${err.message}`);
@@ -423,7 +399,7 @@ const BluetoothPage = () => {
             cursor: coordinates.length === 0 ? 'default' : 'pointer'
           }}
         >
-          Generate & Download BMP
+          Generate BMP
         </button>
       </div>
 
@@ -534,7 +510,7 @@ const BluetoothPage = () => {
           )}
         </div>
 
-        {/* Right Column - Canvas Preview */}
+                  {/* Right Column - Canvas Preview and BMP Data */}
         {canvasPreview && (
           <div style={{ 
             flex: '1 1 300px', 
@@ -556,9 +532,27 @@ const BluetoothPage = () => {
               />
             </div>
             <p style={{ fontSize: '0.9em', color: '#666', marginTop: '10px' }}>
-              This is a preview of what will be generated as a BMP file. 
-              The actual BMP will be {imageWidth}×{imageHeight} pixels.
+              This is a preview of the BMP image ({imageWidth}×{imageHeight} pixels).
+              {bmpData && ` The BMP data is ${Math.round(bmpData.size / 1024)} KB and ready for Google Vision API.`}
             </p>
+            
+            {/* Add button to use with Google Vision - you'd integrate this with your API code */}
+            {bmpData && (
+              <button
+                onClick={() => log('BMP data ready for Vision API')}
+                style={{ 
+                  padding: '8px 16px',
+                  backgroundColor: '#FF5722',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  marginTop: '10px',
+                  cursor: 'pointer'
+                }}
+              >
+                Send to Vision API
+              </button>
+            )}
           </div>
         )}
       </div>
