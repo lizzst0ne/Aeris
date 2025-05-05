@@ -69,11 +69,11 @@ function App() {
   return (
     <Router>
       <div className="app">
-        <header>
-          <h1>Google Calendar Integration</h1>
+      <header>
+          <h1 style="marginRight: 1rem;">Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
           <Link to="/bluetooth">
-            <button style={{ marginRight: '1rem' }}>Go to Bluetooth Page</button>
+            <button style="padding: 5px 5px; background-color: #D2D2F4; color: #1e1e1e; border: none; border-radius: 4px;">Go to Bluetooth Page</button>
           </Link>
 
           {user ? (
@@ -109,7 +109,7 @@ function App() {
           />
         </Routes>
       </div>
-    </Router>
+     </Router>
   );
 }
 

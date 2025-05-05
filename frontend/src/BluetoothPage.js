@@ -229,7 +229,7 @@ const BluetoothPage = () => {
   // Render the UI
   return (
     <div style={{ padding: '20px' }}>
-      <h2>Bluetooth Calendar</h2>
+      <h2>urmomBluetooth Calendar</h2>
       <p><strong>Status:</strong> {status}</p>
       
       <button 
