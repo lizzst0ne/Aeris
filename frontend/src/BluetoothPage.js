@@ -249,12 +249,12 @@ return (
       </button>
 
       <button 
-        onClick={manualDownload}
+        onClick={saveCoordinatesToFile}
         disabled={coordinates.length === 0}
         style={{ 
           padding: '8px 16px',
           backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
-          color: 'blue',
+          color: 'white',
           border: 'none',
           borderRadius: '4px',
           cursor: coordinates.length === 0 ? 'default' : 'pointer'
