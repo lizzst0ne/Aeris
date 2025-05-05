@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 const CALENDAR_SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
 const CALENDAR_DATA_CHAR_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
-// Helper function to download data as a text file
+// Helper function to download data as a text file - not used directly anymore
+// Instead, the saveCoordinatesToFile function handles download directly for better debugging
 const downloadAsFile = (data, filename) => {
   console.log('downloadAsFile called', {data: data.substring(0, 50) + '...', filename});
   const text = data;
@@ -42,6 +43,8 @@ const BluetoothPage = () => {
   const [dateInfo, setDateInfo] = useState(null);
   const [messageHistory, setMessageHistory] = useState([]);
   const [debugLog, setDebugLog] = useState([]);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [modalContent, setModalContent] = useState('');
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
@@ -118,7 +121,8 @@ const BluetoothPage = () => {
       }
     }
   };
-   // Save coordinates to a text file
+
+   // Save coordinates to a text file or display them for copying
    const saveCoordinatesToFile = () => {
     // Log the action for debugging
     log('Save Coordinates button clicked');
@@ -148,39 +152,45 @@ const BluetoothPage = () => {
       const timestamp = new Date().toISOString().replace(/:/g, '-').replace('T', '_').split('.')[0];
       const filename = `coordz${timestamp}.txt`;
       
-      // Download the file with more verbose logging
-      log(`Initiating download of file: ${filename}`);
+      // Detect if we're on iOS
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       
-      // Download using a more direct approach
-      const blob = new Blob([content], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      
-      log('Download anchor created, attempting to click...');
-      a.click();
-      
-      log('Click triggered on download anchor');
-      
-      // Show user feedback
-      alert(`Download initiated for ${filename}\nCheck your downloads folder!`);
-      
-      // Clean up
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        log('Download anchor cleaned up');
-      }, 100);
-      
-      log(`Coordinates saved to file: ${filename}`);
+      if (isIOS) {
+        // For iOS, show the content in a modal for copying instead of downloading
+        setShowCopyModal(true);
+        setModalContent(content);
+        log('Displaying content for copying (iOS mode)');
+      } else {
+        // Download the file as before for non-iOS devices
+        log(`Initiating download of file: ${filename}`);
+        
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        
+        log('Download anchor created, attempting to click...');
+        a.click();
+        
+        log('Click triggered on download anchor');
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          log('Download anchor cleaned up');
+        }, 100);
+        
+        log(`Coordinates saved to file: ${filename}`);
+      }
     } catch (err) {
       const errorMsg = `Error saving coordinates: ${err.message}`;
       log(errorMsg);
       console.error(errorMsg, err);
-      alert(`Failed to save file: ${err.message}`);
+      alert(`Error: ${err.message}`);
     }
   };
 
@@ -353,6 +363,84 @@ return (
           }}>
             {debugLog.map((line, i) => <div key={i}>{line}</div>)}
           </pre>
+        </div>
+      </div>
+    )}
+    {/* Copy Modal for iOS */}
+    {showCopyModal && (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          width: '90%',
+          maxWidth: '600px',
+          maxHeight: '80%',
+          overflow: 'auto'
+        }}>
+          <h3>Coordinate Data</h3>
+          <p>Copy this data to save it (long press and select "Copy"):</p>
+          <textarea 
+            readOnly
+            style={{
+              width: '100%',
+              height: '200px',
+              padding: '10px',
+              marginBottom: '10px',
+              fontFamily: 'monospace',
+              fontSize: '12px'
+            }}
+            value={modalContent}
+          />
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between'
+          }}>
+            <button 
+              onClick={() => {
+                try {
+                  navigator.clipboard.writeText(modalContent);
+                  alert('Content copied to clipboard!');
+                } catch (err) {
+                  alert('Please copy the text manually by long-pressing and selecting "Copy"');
+                }
+              }}
+              style={{ 
+                padding: '8px 16px',
+                backgroundColor: '#4CAF50',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Copy to Clipboard
+            </button>
+            <button 
+              onClick={() => setShowCopyModal(false)}
+              style={{ 
+                padding: '8px 16px',
+                backgroundColor: '#f44336',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     )}
