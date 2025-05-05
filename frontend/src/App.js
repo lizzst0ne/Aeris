@@ -72,7 +72,7 @@ function App() {
         <header>
           <h1>Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
-          <div style="gap: 2em;">
+          <div>
               <Link to="/bluetooth">
                 <button style={{ marginRight: '1rem' }}>Go to Bluetooth Page</button>
               </Link>
