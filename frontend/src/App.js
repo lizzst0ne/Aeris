@@ -72,19 +72,22 @@ function App() {
         <header>
           <h1>Google Calendar Integration</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
-          <Link to="/bluetooth">
-            <button style={{ marginRight: '1rem' }}>Go to Bluetooth Page</button>
-          </Link>
+          <container style="gap: 2em;">
+              <Link to="/bluetooth">
+                <button style={{ marginRight: '1rem' }}>Go to Bluetooth Page</button>
+              </Link>
 
-          {user ? (
-            <div className="user-info">
-              <img src={user.photoURL} alt="Profile" className="profile-pic" />
-              <span>Welcome, {user.displayName}</span>
-              <button onClick={() => auth.signOut()}>Sign Out</button>
-            </div>
-          ) : (
-            <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
-          )}
+              {user ? (
+                <div className="user-info">
+                  <img src={user.photoURL} alt="Profile" className="profile-pic" />
+                  <span>Welcome, {user.displayName}</span>
+                  <button onClick={() => auth.signOut()}>Sign Out</button>
+                </div>
+              ) : (
+                <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
+              )}
+          </container>
+
         </header>
 
         {/*  [ADDED] Define Routes */}
