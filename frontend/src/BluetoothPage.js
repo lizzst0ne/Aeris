@@ -6,6 +6,7 @@ const CALENDAR_DATA_CHAR_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
 // Helper function to download data as a text file
 const downloadAsFile = (data, filename) => {
+  console.log('downloadAsFile called', {data: data.substring(0, 50) + '...', filename});
   const text = data;
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
@@ -14,12 +15,15 @@ const downloadAsFile = (data, filename) => {
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
+  console.log('Download anchor created');
   a.click();
+  console.log('Download anchor clicked');
   
   // Clean up
   setTimeout(() => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    console.log('Download anchor cleaned up');
   }, 100);
 };
 
@@ -114,15 +118,19 @@ const BluetoothPage = () => {
       }
     }
   };
-
    // Save coordinates to a text file
    const saveCoordinatesToFile = () => {
+    // Log the action for debugging
+    log('Save Coordinates button clicked');
+    
     if (coordinates.length === 0) {
       log('No coordinates to save');
+      alert('No coordinates to save!');
       return;
     }
     
     try {
+      log(`Preparing to save ${coordinates.length} coordinates...`);
       
       // Build the content of the file
       let content = `Calendar Coordinates Data\n`;
@@ -130,19 +138,49 @@ const BluetoothPage = () => {
       content += `Total Coordinates: ${coordinates.length}\n\n`;
       
       // Add all coordinates
-      coordinates.forEach(coord => {
-        content += `${coord.x},${coord.y}\n`;
+      coordinates.forEach((coord, index) => {
+        content += `${index+1}: ${coord.x},${coord.y}\n`;
       });
+      
+      log('Content prepared: ' + content.substring(0, 50) + '...');
       
       // Generate filename with timestamp keeping timestamp for now for different file making
       const timestamp = new Date().toISOString().replace(/:/g, '-').replace('T', '_').split('.')[0];
       const filename = `coordz${timestamp}.txt`;
       
-      // Download the file
-      downloadAsFile(content, filename);
+      // Download the file with more verbose logging
+      log(`Initiating download of file: ${filename}`);
+      
+      // Download using a more direct approach
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      
+      log('Download anchor created, attempting to click...');
+      a.click();
+      
+      log('Click triggered on download anchor');
+      
+      // Show user feedback
+      alert(`Download initiated for ${filename}\nCheck your downloads folder!`);
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        log('Download anchor cleaned up');
+      }, 100);
+      
       log(`Coordinates saved to file: ${filename}`);
     } catch (err) {
-      log(`Error saving coordinates: ${err.message}`);
+      const errorMsg = `Error saving coordinates: ${err.message}`;
+      log(errorMsg);
+      console.error(errorMsg, err);
+      alert(`Failed to save file: ${err.message}`);
     }
   };
 
