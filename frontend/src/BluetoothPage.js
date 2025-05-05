@@ -4,35 +4,129 @@ import React, { useState, useEffect, useRef } from 'react';
 const CALENDAR_SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
 const CALENDAR_DATA_CHAR_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
-// Helper function to download data as a text file - not used directly anymore
-// Instead, the saveCoordinatesToFile function handles download directly for better debugging
-const downloadAsFile = (data, filename) => {
-  console.log('downloadAsFile called', {data: data.substring(0, 50) + '...', filename});
-  const text = data;
-  const blob = new Blob([text], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  console.log('Download anchor created');
-  a.click();
-  console.log('Download anchor clicked');
-  
-  // Clean up
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    console.log('Download anchor cleaned up');
-  }, 100);
-};
-
-
 // Helper function to visualize data points
 const formatCoordinateData = (coords) => {
   if (!coords || coords.length === 0) return "No data collected";
   return `${coords.length} points collected`;
+};
+
+// BMP generation functions
+const createBMPFile = (coordinates, width = 800, height = 600, lineThickness = 2) => {
+  // Create a blank canvas first
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  
+  // Fill with white background
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw black lines/points for the coordinates
+  ctx.fillStyle = 'black';
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = lineThickness;
+  
+  // If we have coordinates, draw them
+  if (coordinates && coordinates.length > 0) {
+    // Start a path
+    ctx.beginPath();
+    ctx.moveTo(coordinates[0].x, coordinates[0].y);
+    
+    // Connect all points with lines
+    for (let i = 1; i < coordinates.length; i++) {
+      ctx.lineTo(coordinates[i].x, coordinates[i].y);
+    }
+    
+    // Stroke the path
+    ctx.stroke();
+  }
+  
+  // Convert canvas to BMP data
+  return canvasToBMP(canvas);
+};
+
+// Function to convert canvas to BMP file format
+const canvasToBMP = (canvas) => {
+  const width = canvas.width;
+  const height = canvas.height;
+  const context = canvas.getContext('2d');
+  const imageData = context.getImageData(0, 0, width, height);
+  const pixelArray = imageData.data;
+  
+  // BMP file header (14 bytes)
+  const fileHeaderSize = 14;
+  // DIB header size (40 bytes for BITMAPINFOHEADER)
+  const dibHeaderSize = 40;
+  
+  // Calculate row size and padding
+  // Each row in BMP needs to be multiple of 4 bytes
+  const rowSize = Math.floor((24 * width + 31) / 32) * 4;
+  const padding = rowSize - (width * 3);
+  
+  // Calculate file size
+  const fileSize = fileHeaderSize + dibHeaderSize + (rowSize * height);
+  
+  // Create buffer for the BMP file
+  const buffer = new ArrayBuffer(fileSize);
+  const view = new DataView(buffer);
+  
+  // BMP File Header (14 bytes)
+  view.setUint8(0, 'B'.charCodeAt(0));  // BM signature
+  view.setUint8(1, 'M'.charCodeAt(0));
+  view.setUint32(2, fileSize, true);    // File size
+  view.setUint32(6, 0, true);           // Reserved
+  view.setUint32(10, fileHeaderSize + dibHeaderSize, true); // Pixel data offset
+  
+  // DIB Header (40 bytes - BITMAPINFOHEADER)
+  view.setUint32(14, dibHeaderSize, true); // DIB Header size
+  view.setUint32(18, width, true);         // Image width
+  view.setInt32(22, -height, true);        // Image height (negative for top-down)
+  view.setUint16(26, 1, true);             // Planes (always 1)
+  view.setUint16(28, 24, true);            // Bits per pixel (24 for RGB)
+  view.setUint32(30, 0, true);             // Compression method (0 = none)
+  view.setUint32(34, 0, true);             // Image size (0 for uncompressed)
+  view.setUint32(38, 2835, true);          // Horizontal resolution (72 DPI ≈ 2835 pixels/meter)
+  view.setUint32(42, 2835, true);          // Vertical resolution
+  view.setUint32(46, 0, true);             // Colors in palette (0 = default)
+  view.setUint32(50, 0, true);             // Important colors (0 = all)
+  
+  // Pixel data
+  let offset = fileHeaderSize + dibHeaderSize;
+  
+  // BMP stores pixels bottom-to-top by default, but we're using negative height for top-down
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const pixelOffset = (y * width + x) * 4;
+      
+      // BMP stores colors as BGR, not RGB
+      const blue = pixelArray[pixelOffset];
+      const green = pixelArray[pixelOffset + 1];
+      const red = pixelArray[pixelOffset + 2];
+      
+      // Write pixel data
+      view.setUint8(offset++, blue);
+      view.setUint8(offset++, green);
+      view.setUint8(offset++, red);
+    }
+    
+    // Add padding at the end of each row
+    offset += padding;
+  }
+  
+  return new Blob([buffer], { type: 'image/bmp' });
+};
+
+// Helper function to download BMP file
+const downloadBMP = (blob, fileName = 'calendar-data.bmp') => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 const BluetoothPage = () => {
@@ -43,14 +137,16 @@ const BluetoothPage = () => {
   const [dateInfo, setDateInfo] = useState(null);
   const [messageHistory, setMessageHistory] = useState([]);
   const [debugLog, setDebugLog] = useState([]);
-  const [showCopyModal, setShowCopyModal] = useState(false);
-  const [modalContent, setModalContent] = useState('');
+  const [canvasPreview, setCanvasPreview] = useState(null);
+  const [imageWidth, setImageWidth] = useState(800);
+  const [imageHeight, setImageHeight] = useState(600);
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const lastValueRef = useRef('');
   const sessionStateRef = useRef('idle'); // idle, collecting, completed
+  const canvasRef = useRef(null);
 
   // Helper for adding to debug log
   const log = (msg) => {
@@ -104,6 +200,8 @@ const BluetoothPage = () => {
     if (data.includes('END-')) {
       sessionStateRef.current = 'completed';
       log(`Session completed: ${data}`);
+      // Generate preview when session is completed
+      updateCanvasPreview();
       return;
     }
     
@@ -119,78 +217,6 @@ const BluetoothPage = () => {
           log(`Coordinate received: x=${x}, y=${y}`);
         }
       }
-    }
-  };
-
-   // Save coordinates to a text file or display them for copying
-   const saveCoordinatesToFile = () => {
-    // Log the action for debugging
-    log('Save Coordinates button clicked');
-    
-    if (coordinates.length === 0) {
-      log('No coordinates to save');
-      alert('No coordinates to save!');
-      return;
-    }
-    
-    try {
-      log(`Preparing to save ${coordinates.length} coordinates...`);
-      
-      // Build the content of the file
-      let content = `Calendar Coordinates Data\n`;
-      content += `Date: ${dateInfo || 'Not provided'}\n`;
-      content += `Total Coordinates: ${coordinates.length}\n\n`;
-      
-      // Add all coordinates
-      coordinates.forEach((coord, index) => {
-        content += `${index+1}: ${coord.x},${coord.y}\n`;
-      });
-      
-      log('Content prepared: ' + content.substring(0, 50) + '...');
-      
-      // Generate filename with timestamp keeping timestamp for now for different file making
-      const timestamp = new Date().toISOString().replace(/:/g, '-').replace('T', '_').split('.')[0];
-      const filename = `coordz${timestamp}.txt`;
-      
-      // Detect if we're on iOS
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      
-      if (isIOS) {
-        // For iOS, show the content in a modal for copying instead of downloading
-        setShowCopyModal(true);
-        setModalContent(content);
-        log('Displaying content for copying (iOS mode)');
-      } else {
-        // Download the file as before for non-iOS devices
-        log(`Initiating download of file: ${filename}`);
-        
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        
-        log('Download anchor created, attempting to click...');
-        a.click();
-        
-        log('Click triggered on download anchor');
-        
-        // Clean up
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          log('Download anchor cleaned up');
-        }, 100);
-        
-        log(`Coordinates saved to file: ${filename}`);
-      }
-    } catch (err) {
-      const errorMsg = `Error saving coordinates: ${err.message}`;
-      log(errorMsg);
-      console.error(errorMsg, err);
-      alert(`Error: ${err.message}`);
     }
   };
 
@@ -220,7 +246,7 @@ const BluetoothPage = () => {
   // Set up polling to regularly read the characteristic value
   const setupPolling = async (characteristic) => {
     dataCharRef.current = characteristic;
-    log('Polling started (500ms interval)');
+    log('Polling started (10ms interval)');
 
     pollingIntervalRef.current = setInterval(async () => {
       try {
@@ -273,179 +299,271 @@ const BluetoothPage = () => {
     }
   };
 
- 
-// Render the UI
-return (
-  <div style={{ padding: '20px' }}>
-    <h2>Bluetooth Calendar</h2>
-    <p><strong>Status:</strong> {status}</p>
+  // Generate BMP file and download it
+  const handleGenerateBMP = () => {
+    if (coordinates.length === 0) {
+      log('No coordinates available to generate BMP');
+      return;
+    }
     
-    <div style={{ display: 'flex', gap: '10px' }}>
-      <button 
-        onClick={connectToDevice}
-        disabled={connectedDevice !== null}
-        style={{ 
-          padding: '8px 16px',
-          backgroundColor: connectedDevice ? '#cccccc' : '#4CAF50',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: connectedDevice ? 'default' : 'pointer'
-        }}
-      >
-        Connect to Calendar Device
-      </button>
+    try {
+      log(`Generating BMP with ${coordinates.length} coordinates (${imageWidth}x${imageHeight})...`);
+      const bmpBlob = createBMPFile(coordinates, imageWidth, imageHeight);
+      
+      // Generate file name with date if available
+      const fileName = dateInfo 
+        ? `calendar-${dateInfo.replace(',', '-')}.bmp` 
+        : `calendar-${new Date().toISOString().slice(0,10)}.bmp`;
+      
+      downloadBMP(bmpBlob, fileName);
+      log(`BMP file generated and download initiated: ${fileName}`);
+    } catch (err) {
+      log(`Error generating BMP: ${err.message}`);
+    }
+  };
+  
+  // Update canvas preview with current coordinates
+  const updateCanvasPreview = () => {
+    if (coordinates.length === 0) return;
+    
+    try {
+      // Create a canvas element to preview the BMP
+      const canvas = document.createElement('canvas');
+      canvas.width = imageWidth;
+      canvas.height = imageHeight;
+      const ctx = canvas.getContext('2d');
+      
+      // White background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, imageWidth, imageHeight);
+      
+      // Draw black lines connecting coordinates
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      // Start from first point
+      if (coordinates.length > 0) {
+        ctx.moveTo(coordinates[0].x, coordinates[0].y);
+        
+        // Connect all remaining points
+        for (let i = 1; i < coordinates.length; i++) {
+          ctx.lineTo(coordinates[i].x, coordinates[i].y);
+        }
+        
+        ctx.stroke();
+      }
+      
+      // Convert to data URL for display
+      const dataURL = canvas.toDataURL('image/png');
+      setCanvasPreview(dataURL);
+      log('Canvas preview updated');
+    } catch (err) {
+      log(`Error updating canvas preview: ${err.message}`);
+    }
+  };
 
-      <button 
-        onClick={saveCoordinatesToFile}
-        disabled={coordinates.length === 0}
-        style={{ 
-          padding: '8px 16px',
-          backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: coordinates.length === 0 ? 'default' : 'pointer'
-        }}
-      >
-        Save Coordinates to File
-      </button>
-    </div>
+  // Clean up resources when component unmounts
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+      
+      if (connectedDevice && connectedDevice.gatt.connected) {
+        connectedDevice.gatt.disconnect();
+      }
+    };
+  }, [connectedDevice]);
 
-    {/* Data Display Section */}
-    {currentData && (
-      <div style={{ marginTop: '20px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-          {/* Current Info Panel */}
+  // Update canvas preview when coordinates change significantly
+  useEffect(() => {
+    // Only update preview if we have coordinates and are in completed state
+    // or when we reach thresholds of points
+    if (
+      coordinates.length > 0 && 
+      (sessionStateRef.current === 'completed' || 
+       coordinates.length % 20 === 0) // Update every 20 points
+    ) {
+      updateCanvasPreview();
+    }
+  }, [coordinates, sessionStateRef.current]);
+
+  // Render the UI
+  return (
+    <div style={{ padding: '20px' }}>
+      <h2>Bluetooth Calendar</h2>
+      <p><strong>Status:</strong> {status}</p>
+      
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <button 
+          onClick={connectToDevice}
+          disabled={connectedDevice !== null}
+          style={{ 
+            padding: '8px 16px',
+            backgroundColor: connectedDevice ? '#cccccc' : '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: connectedDevice ? 'default' : 'pointer'
+          }}
+        >
+          Connect to Calendar Device
+        </button>
+        
+        <button 
+          onClick={handleGenerateBMP}
+          disabled={coordinates.length === 0}
+          style={{ 
+            padding: '8px 16px',
+            backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: coordinates.length === 0 ? 'default' : 'pointer'
+          }}
+        >
+          Generate & Download BMP
+        </button>
+      </div>
+
+      {/* Image Size Controls */}
+      <div style={{ 
+        marginBottom: '20px',
+        padding: '15px',
+        backgroundColor: '#f0f0f0',
+        borderRadius: '8px',
+        maxWidth: '500px'
+      }}>
+        <h3 style={{ marginTop: 0 }}>BMP Settings</h3>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Width:</label>
+            <input 
+              type="number" 
+              value={imageWidth} 
+              onChange={(e) => setImageWidth(Number(e.target.value))}
+              min="100"
+              max="2000"
+              style={{ padding: '5px', width: '80px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Height:</label>
+            <input 
+              type="number" 
+              value={imageHeight} 
+              onChange={(e) => setImageHeight(Number(e.target.value))}
+              min="100"
+              max="2000"
+              style={{ padding: '5px', width: '80px' }}
+            />
+          </div>
+          <button 
+            onClick={updateCanvasPreview}
+            disabled={coordinates.length === 0}
+            style={{ 
+              padding: '8px 16px',
+              backgroundColor: '#607D8B',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              marginTop: '20px'
+            }}
+          >
+            Update Preview
+          </button>
+        </div>
+      </div>
+
+      {/* Data Display Section */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+        {/* Left Column - Status and Data */}
+        <div style={{ flex: '1 1 400px' }}>
+          {currentData && (
+            <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+                {/* Current Info Panel */}
+                <div style={{ 
+                  flex: '1 1 300px',  
+                  padding: '15px',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                  <h3>Current Data</h3>
+                  <p><strong>Last Message:</strong> {currentData}</p>
+                  <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
+                  <p><strong>Session State:</strong> {sessionStateRef.current}</p>
+                  <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
+                </div>
+
+                {/* Message History Panel */}
+                <div style={{
+                  flex: '1 1 300px',
+                  padding: '15px',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                  <h3>Message History</h3>
+                  <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
+                    {messageHistory.map((entry, idx) => (
+                      <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Debug Console */}
+              <div style={{ marginTop: '20px' }}>
+                <h3>Debug Console</h3>
+                <pre style={{ 
+                  background: '#333', 
+                  color: '#f3f3f3',
+                  padding: '10px', 
+                  height: '200px', 
+                  overflowY: 'scroll',
+                  fontFamily: 'monospace',
+                  borderRadius: '4px'
+                }}>
+                  {debugLog.map((line, i) => <div key={i}>{line}</div>)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column - Canvas Preview */}
+        {canvasPreview && (
           <div style={{ 
             flex: '1 1 300px', 
-            marginRight: '20px', 
             padding: '15px',
             backgroundColor: '#f5f5f5',
             borderRadius: '8px',
             marginBottom: '15px'
           }}>
-            <h3>Current Data</h3>
-            <p><strong>Last Message:</strong> {currentData}</p>
-            <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
-            <p><strong>Session State:</strong> {sessionStateRef.current}</p>
-            <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
+            <h3>Preview Image</h3>
+            <div style={{ border: '1px solid #ddd', background: '#fff', padding: '5px' }}>
+              <img 
+                src={canvasPreview} 
+                alt="Drawing Preview" 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '400px',
+                  display: 'block'
+                }} 
+              />
+            </div>
+            <p style={{ fontSize: '0.9em', color: '#666', marginTop: '10px' }}>
+              This is a preview of what will be generated as a BMP file. 
+              The actual BMP will be {imageWidth}×{imageHeight} pixels.
+            </p>
           </div>
-
-          {/* Message History Panel */}
-          <div style={{
-            flex: '1 1 300px',
-            padding: '15px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            marginBottom: '15px'
-          }}>
-            <h3>Message History</h3>
-            <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
-              {messageHistory.map((entry, idx) => (
-                <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        {/* Debug Console */}
-        <div style={{ marginTop: '20px' }}>
-          <h3>Debug Console</h3>
-          <pre style={{ 
-            background: '#333', 
-            color: '#f3f3f3',
-            padding: '10px', 
-            height: '200px', 
-            overflowY: 'scroll',
-            fontFamily: 'monospace',
-            borderRadius: '4px'
-          }}>
-            {debugLog.map((line, i) => <div key={i}>{line}</div>)}
-          </pre>
-        </div>
+        )}
       </div>
-    )}
-    {/* Copy Modal for iOS */}
-    {showCopyModal && (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
-      }}>
-        <div style={{
-          backgroundColor: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          width: '90%',
-          maxWidth: '600px',
-          maxHeight: '80%',
-          overflow: 'auto'
-        }}>
-          <h3>Coordinate Data</h3>
-          <p>Copy this data to save it (long press and select "Copy"):</p>
-          <textarea 
-            readOnly
-            style={{
-              width: '100%',
-              height: '200px',
-              padding: '10px',
-              marginBottom: '10px',
-              fontFamily: 'monospace',
-              fontSize: '12px'
-            }}
-            value={modalContent}
-          />
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between'
-          }}>
-            <button 
-              onClick={() => {
-                try {
-                  navigator.clipboard.writeText(modalContent);
-                  alert('Content copied to clipboard!');
-                } catch (err) {
-                  alert('Please copy the text manually by long-pressing and selecting "Copy"');
-                }
-              }}
-              style={{ 
-                padding: '8px 16px',
-                backgroundColor: '#4CAF50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Copy to Clipboard
-            </button>
-            <button 
-              onClick={() => setShowCopyModal(false)}
-              style={{ 
-                padding: '8px 16px',
-                backgroundColor: '#f44336',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-  </div>
-);
+    </div>
+  );
 };
 
 export default BluetoothPage;
