@@ -178,6 +178,7 @@ const BluetoothPage = () => {
     if (data.includes('STOP-')) {
       sessionStateRef.current = 'waiting_for_date';
       log(`Data collection stopped: ${data}`);
+      log(`Total coordinates received: ${coordinates.length}`);
       // Force a preview update when we stop collecting
       setTimeout(() => updateCanvasPreview(), 100);
       return;
@@ -195,6 +196,7 @@ const BluetoothPage = () => {
     if (data.includes('END-')) {
       sessionStateRef.current = 'completed';
       log(`Session completed: ${data}`);
+      log(`Final coordinates count: ${coordinates.length}`);
       // Generate preview when session is completed
       setTimeout(() => updateCanvasPreview(), 100);
       return;
@@ -205,18 +207,34 @@ const BluetoothPage = () => {
       const parts = data.split(':');
       if (parts.length === 2) {
         const coordData = parts[1];
-        const [x, y] = coordData.split(',').map(Number);
+        const [rawX, rawY] = coordData.split(',').map(Number);
         
-        if (!isNaN(x) && !isNaN(y)) {
+        if (!isNaN(rawX) && !isNaN(rawY)) {
+          // Add debugging info for raw coordinates
+          log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
+          
+          // Scale coordinates to fit the canvas dimensions if needed
+          // Assuming the raw coordinates might be in a different scale
+          // You may need to adjust these scaling factors based on your device output
+          const x = Math.min(Math.max(rawX, 0), imageWidth); 
+          const y = Math.min(Math.max(rawY, 0), imageHeight);
+          
           setCoordinates(prev => {
             const newCoords = [...prev, { x, y }];
+            
+            // Log coordinate info periodically
+            if (newCoords.length % 5 === 0) {
+              log(`Total coordinates: ${newCoords.length}, Latest: (${x},${y})`);
+            }
+            
             // If we've collected enough new points, update the preview
-            if (newCoords.length % 10 === 0) {
+            if (newCoords.length % 10 === 0 || newCoords.length === 1) {
               setTimeout(() => updateCanvasPreview(), 50);
             }
             return newCoords;
           });
-          log(`Coordinate received: x=${x}, y=${y}`);
+        } else {
+          log(`Invalid coordinate data: ${coordData}`);
         }
       }
     }
@@ -326,10 +344,62 @@ const BluetoothPage = () => {
     
     try {
       log(`Updating preview with ${coordinates.length} points`);
-      // Generate BMP and update preview in one step
-      const result = createBMPFile(coordinates, imageWidth, imageHeight);
+      
+      // Log some coordinate samples for debugging
+      if (coordinates.length > 0) {
+        log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
+        if (coordinates.length > 1) {
+          const lastIdx = coordinates.length - 1;
+          log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
+        }
+      }
+      
+      // Analyze coordinates to see if they need scaling
+      let minX = Number.MAX_VALUE, minY = Number.MAX_VALUE;
+      let maxX = 0, maxY = 0;
+      
+      coordinates.forEach(coord => {
+        minX = Math.min(minX, coord.x);
+        minY = Math.min(minY, coord.y);
+        maxX = Math.max(maxX, coord.x);
+        maxY = Math.max(maxY, coord.y);
+      });
+      
+      log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+      
+      // Determine if scaling is needed
+      const needsScaling = maxX > imageWidth || maxY > imageHeight || 
+                          (maxX < imageWidth/2 && maxY < imageHeight/2);
+      
+      let scaledCoordinates = [...coordinates];
+      
+      if (needsScaling) {
+        log('Applying coordinate scaling to fit canvas');
+        
+        // Calculate scaling factors
+        const paddingFactor = 0.9; // Leave 10% padding
+        const xScale = (imageWidth * paddingFactor) / (maxX - minX || 1);
+        const yScale = (imageHeight * paddingFactor) / (maxY - minY || 1);
+        const scale = Math.min(xScale, yScale);
+        
+        // Calculate centering offset
+        const xOffset = (imageWidth - (maxX - minX) * scale) / 2;
+        const yOffset = (imageHeight - (maxY - minY) * scale) / 2;
+        
+        // Apply scaling and offset
+        scaledCoordinates = coordinates.map(coord => ({
+          x: (coord.x - minX) * scale + xOffset,
+          y: (coord.y - minY) * scale + yOffset
+        }));
+        
+        log(`Applied scaling factor: ${scale.toFixed(2)}`);
+      }
+      
+      // Generate BMP with optionally scaled coordinates
+      const result = createBMPFile(scaledCoordinates, imageWidth, imageHeight);
       setCanvasPreview(result.previewUrl);
       setBmpData(result.bmpBlob);
+      
       log('Canvas preview updated successfully');
     } catch (err) {
       log(`Error updating canvas preview: ${err.message}`);
@@ -355,22 +425,102 @@ const BluetoothPage = () => {
 
   // Debug button to add fake coordinates for testing
   const addTestCoordinates = () => {
+    // Clear existing coordinates
+    setCoordinates([]);
+    
+    const testType = window.prompt("Select test pattern (enter 1-4):\n1: Circle\n2: Spiral\n3: Square\n4: Raw device simulation", "1");
+    
     const testCoords = [];
     const centerX = imageWidth / 2;
     const centerY = imageHeight / 2;
     const radius = Math.min(imageWidth, imageHeight) / 4;
     
-    // Create a simple circle
-    for (let i = 0; i < 50; i++) {
-      const angle = (i / 50) * Math.PI * 2;
-      const x = centerX + Math.cos(angle) * radius;
-      const y = centerY + Math.sin(angle) * radius;
-      testCoords.push({ x, y });
+    if (testType === "1") {
+      // Create a simple circle
+      for (let i = 0; i < 50; i++) {
+        const angle = (i / 50) * Math.PI * 2;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        testCoords.push({ x, y });
+      }
+      log(`Added ${testCoords.length} test coordinates in circle pattern`);
+    } 
+    else if (testType === "2") {
+      // Create a spiral
+      for (let i = 0; i < 100; i++) {
+        const angle = (i / 15) * Math.PI;
+        const spiralRadius = (i / 100) * radius;
+        const x = centerX + Math.cos(angle) * spiralRadius;
+        const y = centerY + Math.sin(angle) * spiralRadius;
+        testCoords.push({ x, y });
+      }
+      log(`Added ${testCoords.length} test coordinates in spiral pattern`);
+    }
+    else if (testType === "3") {
+      // Create a square
+      const side = radius * 1.5;
+      const halfSide = side / 2;
+      
+      // Top edge
+      for (let i = 0; i < 20; i++) {
+        testCoords.push({ 
+          x: centerX - halfSide + (i/19) * side, 
+          y: centerY - halfSide 
+        });
+      }
+      
+      // Right edge
+      for (let i = 0; i < 20; i++) {
+        testCoords.push({ 
+          x: centerX + halfSide,
+          y: centerY - halfSide + (i/19) * side
+        });
+      }
+      
+      // Bottom edge
+      for (let i = 0; i < 20; i++) {
+        testCoords.push({ 
+          x: centerX + halfSide - (i/19) * side,
+          y: centerY + halfSide
+        });
+      }
+      
+      // Left edge
+      for (let i = 0; i < 20; i++) {
+        testCoords.push({ 
+          x: centerX - halfSide,
+          y: centerY + halfSide - (i/19) * side
+        });
+      }
+      
+      log(`Added ${testCoords.length} test coordinates in square pattern`);
+    }
+    else if (testType === "4") {
+      // Simulate raw device output (much larger numbers)
+      // This simulates what might be coming from an actual device with different scaling
+      const scale = 10; // Simulated device scale factor
+      
+      for (let i = 0; i < 50; i++) {
+        const angle = (i / 50) * Math.PI * 2;
+        const x = (centerX + Math.cos(angle) * radius) * scale;
+        const y = (centerY + Math.sin(angle) * radius) * scale;
+        testCoords.push({ x, y });
+      }
+      log(`Added ${testCoords.length} raw device simulation coordinates`);
+    }
+    else {
+      // Default to circle
+      for (let i = 0; i < 50; i++) {
+        const angle = (i / 50) * Math.PI * 2;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        testCoords.push({ x, y });
+      }
+      log(`Added ${testCoords.length} test coordinates (default circle)`);
     }
     
     setCoordinates(testCoords);
     setTimeout(() => updateCanvasPreview(), 100);
-    log(`Added ${testCoords.length} test coordinates`);
   };
 
   // Render the UI
