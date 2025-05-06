@@ -133,6 +133,7 @@ const BluetoothPage = () => {
   const [canvasPreview, setCanvasPreview] = useState(null);
   const [imageWidth, setImageWidth] = useState(800);
   const [imageHeight, setImageHeight] = useState(600);
+  const [bmpData, setBmpData] = useState(null);
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
@@ -510,7 +511,7 @@ const BluetoothPage = () => {
           )}
         </div>
 
-                  {/* Right Column - Canvas Preview and BMP Data */}
+        {/* Right Column - Canvas Preview and BMP Data */}
         {canvasPreview && (
           <div style={{ 
             flex: '1 1 300px', 
