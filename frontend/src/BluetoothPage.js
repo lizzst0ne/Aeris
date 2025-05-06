@@ -178,7 +178,8 @@ const BluetoothPage = () => {
     if (data.includes('STOP-')) {
       sessionStateRef.current = 'waiting_for_date';
       log(`Data collection stopped: ${data}`);
-      log(`${coordinates}`);
+      // Force a preview update when we stop collecting
+      setTimeout(() => updateCanvasPreview(), 100);
       return;
     }
     
@@ -195,7 +196,7 @@ const BluetoothPage = () => {
       sessionStateRef.current = 'completed';
       log(`Session completed: ${data}`);
       // Generate preview when session is completed
-      updateCanvasPreview();
+      setTimeout(() => updateCanvasPreview(), 100);
       return;
     }
     
@@ -207,7 +208,14 @@ const BluetoothPage = () => {
         const [x, y] = coordData.split(',').map(Number);
         
         if (!isNaN(x) && !isNaN(y)) {
-          setCoordinates(prev => [...prev, { x, y }]);
+          setCoordinates(prev => {
+            const newCoords = [...prev, { x, y }];
+            // If we've collected enough new points, update the preview
+            if (newCoords.length % 10 === 0) {
+              setTimeout(() => updateCanvasPreview(), 50);
+            }
+            return newCoords;
+          });
           log(`Coordinate received: x=${x}, y=${y}`);
         }
       }
@@ -302,41 +310,30 @@ const BluetoothPage = () => {
     
     try {
       log(`Generating BMP with ${coordinates.length} coordinates (${imageWidth}x${imageHeight})...`);
-      const result = createBMPFile(coordinates, imageWidth, imageHeight);
-      
-      // Store BMP blob in state for later use with Google Vision API
-      setBmpData(result.bmpBlob);
-      
-      // Update the preview
-      setCanvasPreview(result.previewUrl);
-      
-      log(`BMP generated and ready for Vision API: ${result.bmpBlob.size} bytes`);
-      
-      // For browser testing, you can convert the blob to Base64
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64data = reader.result;
-        log(`BMP Base64 data (first 100 chars): ${base64data.substring(0, 100)}...`);
-      };
-      reader.readAsDataURL(result.bmpBlob);
-      
+      updateCanvasPreview(); // Use our shared function
+      log(`BMP generated and ready for Vision API: ${bmpData ? bmpData.size : 0} bytes`);
     } catch (err) {
       log(`Error generating BMP: ${err.message}`);
     }
   };
   
-  //update cancas preview with current coords
+  // Update canvas preview with current coords
   const updateCanvasPreview = () => {
-    if (coordinates.length === 0) return;
+    if (coordinates.length === 0) {
+      log('No coordinates to update preview');
+      return;
+    }
     
     try {
+      log(`Updating preview with ${coordinates.length} points`);
       // Generate BMP and update preview in one step
       const result = createBMPFile(coordinates, imageWidth, imageHeight);
       setCanvasPreview(result.previewUrl);
       setBmpData(result.bmpBlob);
-      log('Canvas preview updated');
+      log('Canvas preview updated successfully');
     } catch (err) {
       log(`Error updating canvas preview: ${err.message}`);
+      console.error("Preview update error:", err);
     }
   };
 
@@ -353,18 +350,28 @@ const BluetoothPage = () => {
     };
   }, [connectedDevice]);
 
-  // Update canvas preview when coordinates change significantly
-  useEffect(() => {
-    // Only update preview if we have coordinates and are in completed state
-    // or when we reach thresholds of points
-    if (
-      coordinates.length > 0 && 
-      (sessionStateRef.current === 'completed' || 
-       coordinates.length % 20 === 0) // Update every 20 points
-    ) {
-      updateCanvasPreview();
+  // No need for the coordinates effect anymore since we're updating 
+  // the preview directly in the coordinate state setter
+
+  // Debug button to add fake coordinates for testing
+  const addTestCoordinates = () => {
+    const testCoords = [];
+    const centerX = imageWidth / 2;
+    const centerY = imageHeight / 2;
+    const radius = Math.min(imageWidth, imageHeight) / 4;
+    
+    // Create a simple circle
+    for (let i = 0; i < 50; i++) {
+      const angle = (i / 50) * Math.PI * 2;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      testCoords.push({ x, y });
     }
-  }, [coordinates, sessionStateRef.current]);
+    
+    setCoordinates(testCoords);
+    setTimeout(() => updateCanvasPreview(), 100);
+    log(`Added ${testCoords.length} test coordinates`);
+  };
 
   // Render the UI
   return (
@@ -401,6 +408,21 @@ const BluetoothPage = () => {
           }}
         >
           Generate BMP
+        </button>
+        
+        {/* Test button for debugging */}
+        <button 
+          onClick={addTestCoordinates}
+          style={{ 
+            padding: '8px 16px',
+            backgroundColor: '#9C27B0',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Add Test Coordinates
         </button>
       </div>
 
@@ -457,70 +479,74 @@ const BluetoothPage = () => {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
         {/* Left Column - Status and Data */}
         <div style={{ flex: '1 1 400px' }}>
-          {currentData && (
-            <div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-                {/* Current Info Panel */}
-                <div style={{ 
-                  flex: '1 1 300px',  
-                  padding: '15px',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '8px',
-                  marginBottom: '15px'
-                }}>
-                  <h3>Current Data</h3>
-                  <p><strong>Last Message:</strong> {currentData}</p>
-                  <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
-                  <p><strong>Session State:</strong> {sessionStateRef.current}</p>
-                  <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
-                </div>
-
-                {/* Message History Panel */}
-                <div style={{
-                  flex: '1 1 300px',
-                  padding: '15px',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '8px',
-                  marginBottom: '15px'
-                }}>
-                  <h3>Message History</h3>
-                  <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
-                    {messageHistory.map((entry, idx) => (
-                      <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
-                    ))}
-                  </ul>
-                </div>
+          <div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+              {/* Current Info Panel */}
+              <div style={{ 
+                flex: '1 1 300px',  
+                padding: '15px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '8px',
+                marginBottom: '15px'
+              }}>
+                <h3>Current Data</h3>
+                <p><strong>Last Message:</strong> {currentData || 'None'}</p>
+                <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
+                <p><strong>Session State:</strong> {sessionStateRef.current}</p>
+                <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
               </div>
 
-              {/* Debug Console */}
-              <div style={{ marginTop: '20px' }}>
-                <h3>Debug Console</h3>
-                <pre style={{ 
-                  background: '#333', 
-                  color: '#f3f3f3',
-                  padding: '10px', 
-                  height: '200px', 
-                  overflowY: 'scroll',
-                  fontFamily: 'monospace',
-                  borderRadius: '4px'
-                }}>
-                  {debugLog.map((line, i) => <div key={i}>{line}</div>)}
-                </pre>
+              {/* Message History Panel */}
+              <div style={{
+                flex: '1 1 300px',
+                padding: '15px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '8px',
+                marginBottom: '15px'
+              }}>
+                <h3>Message History</h3>
+                <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
+                  {messageHistory.length > 0 ? (
+                    messageHistory.map((entry, idx) => (
+                      <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
+                    ))
+                  ) : (
+                    <li>No messages received</li>
+                  )}
+                </ul>
               </div>
             </div>
-          )}
+
+            {/* Debug Console */}
+            <div style={{ marginTop: '20px' }}>
+              <h3>Debug Console</h3>
+              <pre style={{ 
+                background: '#333', 
+                color: '#f3f3f3',
+                padding: '10px', 
+                height: '200px', 
+                overflowY: 'scroll',
+                fontFamily: 'monospace',
+                borderRadius: '4px'
+              }}>
+                {debugLog.length > 0 ? 
+                  debugLog.map((line, i) => <div key={i}>{line}</div>) : 
+                  "No debug logs yet"}
+              </pre>
+            </div>
+          </div>
         </div>
 
         {/* Right Column - Canvas Preview and BMP Data */}
-        {canvasPreview && (
-          <div style={{ 
-            flex: '1 1 300px', 
-            padding: '15px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            marginBottom: '15px'
-          }}>
-            <h3>Preview Image</h3>
+        <div style={{ 
+          flex: '1 1 300px', 
+          padding: '15px',
+          backgroundColor: '#f5f5f5',
+          borderRadius: '8px',
+          marginBottom: '15px'
+        }}>
+          <h3>Preview Image</h3>
+          {canvasPreview ? (
             <div style={{ border: '1px solid #ddd', background: '#fff', padding: '5px' }}>
               <img 
                 src={canvasPreview} 
@@ -532,30 +558,45 @@ const BluetoothPage = () => {
                 }} 
               />
             </div>
-            <p style={{ fontSize: '0.9em', color: '#666', marginTop: '10px' }}>
-              This is a preview of the BMP image ({imageWidth}×{imageHeight} pixels).
-              {bmpData && ` The BMP data is ${Math.round(bmpData.size / 1024)} KB and ready for Google Vision API.`}
-            </p>
-            
-            {/* Add button to use with Google Vision - you'd integrate this with your API code */}
-            {bmpData && (
-              <button
-                onClick={() => log('BMP data ready for Vision API')}
-                style={{ 
-                  padding: '8px 16px',
-                  backgroundColor: '#FF5722',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  marginTop: '10px',
-                  cursor: 'pointer'
-                }}
-              >
-                Send to Vision API
-              </button>
-            )}
-          </div>
-        )}
+          ) : (
+            <div style={{ 
+              border: '1px solid #ddd', 
+              background: '#fff', 
+              padding: '20px',
+              textAlign: 'center',
+              color: '#999'
+            }}>
+              {coordinates.length > 0 ? 
+                "Preview loading..." : 
+                "No coordinates available to display preview"}
+            </div>
+          )}
+          <p style={{ fontSize: '0.9em', color: '#666', marginTop: '10px' }}>
+            {canvasPreview ? 
+              `Preview of the BMP image (${imageWidth}×${imageHeight} pixels).
+              ${bmpData ? `The BMP data is ${Math.round(bmpData.size / 1024)} KB.` : ''}` :
+              "Generate a preview by adding coordinates and clicking 'Update Preview'"
+            }
+          </p>
+          
+          {/* Add button to use with Google Vision - you'd integrate this with your API code */}
+          {bmpData && (
+            <button
+              onClick={() => log('BMP data ready for Vision API')}
+              style={{ 
+                padding: '8px 16px',
+                backgroundColor: '#FF5722',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                marginTop: '10px',
+                cursor: 'pointer'
+              }}
+            >
+              Send to Vision API
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
