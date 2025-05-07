@@ -127,7 +127,7 @@ const canvasToBMP = (canvas) => {
 };
 
 
-const BluetoothPage = () => {
+function BluetoothPage() {
   //app stuff lmao
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
