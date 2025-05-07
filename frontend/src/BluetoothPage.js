@@ -10,10 +10,11 @@ const formatCoordinateData = (coords) => {
   return `${coords.length} points collected`;
 };
 
-// Updated BMP generation functions that adapt to coordinates dynamically
-const createBMPFile = (coordinates, padding = 20, pointSize = 3) => {
+// This is a safer update to your createBMPFile function that should avoid breaking changes
+
+const createBMPFile = (coordinates, padding = 20, pointSize = 3, logFunction) => {
   if (!coordinates || coordinates.length === 0) {
-    log("No coordinates provided for BMP generation");
+    if (logFunction) logFunction("No coordinates provided for BMP generation");
     return null;
   }
   
@@ -34,8 +35,10 @@ const createBMPFile = (coordinates, padding = 20, pointSize = 3) => {
   const width = maxX - minX + 1 + (2 * padding);
   const height = maxY - minY + 1 + (2 * padding);
   
-  log(`Image dimensions based on coordinates: ${width}x${height}`);
-  log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+  if (logFunction) {
+    logFunction(`Image dimensions based on coordinates: ${width}x${height}`);
+    logFunction(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+  }
   
   // Create a blank canvas
   const canvas = document.createElement('canvas');
@@ -65,7 +68,7 @@ const createBMPFile = (coordinates, padding = 20, pointSize = 3) => {
     );
   });
   
-  // Return both the canvas and the BMP data
+  // Return both the canvas and the BMP data along with dimensions
   return {
     canvas,
     width,
@@ -355,7 +358,9 @@ const processData = (data) => {
     }
   };
   
-  // Update canvas preview with current coords
+// This is a safer update to your updateCanvasPreview method
+// to be placed inside your BluetoothPage component
+
 const updateCanvasPreview = () => {
   if (coordinates.length === 0) {
     log('No coordinates to update preview');
@@ -378,14 +383,19 @@ const updateCanvasPreview = () => {
     const padding = 20; // Padding around the edges
     const pointSize = 3; // Size of each point
     
-    const result = createBMPFile(coordinates, padding, pointSize);
+    const result = createBMPFile(coordinates, padding, pointSize, log);
     if (result) {
       setCanvasPreview(result.previewUrl);
       setBmpData(result.bmpBlob);
-      // Update the dimensions based on the actual generated image
-      setImageWidth(result.width);
-      setImageHeight(result.height);
-      log(`Canvas preview updated successfully - dimensions: ${result.width}x${result.height}`);
+      
+      // Only update the dimensions if they came back from the function
+      if (result.width && result.height) {
+        setImageWidth(result.width);
+        setImageHeight(result.height);
+        log(`Canvas preview updated successfully - dimensions: ${result.width}x${result.height}`);
+      } else {
+        log('Canvas preview updated successfully');
+      }
     } else {
       log('Failed to create canvas preview');
     }
