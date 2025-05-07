@@ -277,7 +277,7 @@ const processData = (data) => {
           handleDisconnection();
         }
       }
-    }, 10); // Poll every 10ms
+    }, 1); // Poll every 10ms
   };
 
   // Connect to the Adafruit device
