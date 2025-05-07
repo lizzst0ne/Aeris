@@ -69,10 +69,9 @@ function App() {
   return (
     <Router>
       <div className="app">
-        <header style={{textAlign: 'center'}}>
-          <h1>Aetas Calendar</h1>
+        <header>
           {/*  [ADDED] Button to go to Bluetooth Page */}
-              <div>
+              <div style={{textAlign: 'left'}}>
                 {user ? (
                     <div className="user-info">
                       <img src={user.photoURL} alt="Profile" className="profile-pic" />
@@ -95,6 +94,9 @@ function App() {
             path="/"
             element={
               <main>
+
+                <h1 style={{textAlign: 'center'}}>Aetas Calendar</h1>
+
                 {user ? (
                   <CalendarComponent />
                 ) : (
