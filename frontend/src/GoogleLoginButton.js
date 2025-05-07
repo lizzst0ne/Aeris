@@ -31,6 +31,7 @@ const GoogleLoginButton = ({ onLoginSuccess }) => {
         onClick={handleGoogleLogin}
         disabled={isLoading}
         className="google-login-btn"
+        style={{border: '1px solid #1e1e1e', backgroundColor: '#C5C5F1', borderRadius: '30px', width: '200px'}}
       >
         {isLoading ? "Logging in..." : "Sign in with Google"}
       </button>

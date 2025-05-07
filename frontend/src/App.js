@@ -72,21 +72,7 @@ function App() {
         <header>
           <h1>Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
-          <div>
-              <Link to="/bluetooth">
-                <button style={{border: 'none', backgroundColor: '#C5C5F1'}}>Go to Bluetooth Page</button>
-              </Link>
 
-              {user ? (
-                <div className="user-info">
-                  <img src={user.photoURL} alt="Profile" className="profile-pic" />
-                  <span>Welcome, {user.displayName}</span>
-                  <button onClick={() => auth.signOut()}>Sign Out</button>
-                </div>
-              ) : (
-                <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
-              )}
-          </div>
 
         </header>
 
@@ -100,6 +86,23 @@ function App() {
             path="/"
             element={
               <main>
+                <div style={{display: 'flex'}}>
+                  <Link to="/bluetooth">
+                  <button style={{border: '1px solid #1e1e1e', backgroundColor: '#C5C5F1', borderRadius: '30px', width: '200px'}}>Go to Bluetooth Page</button>
+                  </Link>
+               
+ 
+                  {user ? (
+                    <div className="user-info">
+                      <img src={user.photoURL} alt="Profile" className="profile-pic" />
+                      <span>Welcome, {user.displayName}</span>
+                      <button onClick={() => auth.signOut()}>Sign Out</button>
+                    </div>
+                  ) : (
+                    <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
+                  )}
+                </div>
+
                 {user ? (
                   <CalendarComponent />
                 ) : (
