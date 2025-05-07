@@ -10,34 +10,9 @@ const formatCoordinateData = (coords) => {
   return `${coords.length} points collected`;
 };
 
-// BMP generation functions inspired by the Python version
-const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
-  if (!coordinates || coordinates.length === 0) {
-    log("No coordinates provided for BMP generation");
-    return null;
-  }
-  
-  // Find the dimensions needed for the image (like in Python script)
-  let minX = Number.MAX_VALUE;
-  let maxX = Number.MIN_VALUE;
-  let minY = Number.MAX_VALUE;
-  let maxY = Number.MIN_VALUE;
-  
-  coordinates.forEach(coord => {
-    minX = Math.min(minX, coord.x);
-    maxX = Math.max(maxX, coord.x);
-    minY = Math.min(minY, coord.y);
-    maxY = Math.max(maxY, coord.y);
-  });
-  
-  // Calculate image dimensions with padding
-  const width = maxX - minX + 1 + (2 * padding);
-  const height = maxY - minY + 1 + (2 * padding);
-  
-  log(`Image dimensions based on coordinates: ${width}x${height}`);
-  log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
-  
-  // Create a blank canvas
+// BMP generation functions
+const createBMPFile = (coordinates, width = 800, height = 600, lineThickness = 2) => {
+  // Create a blank canvas first
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -47,44 +22,25 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, width, height);
   
-  // Set point color to black
+  // Draw black lines/points for the coordinates
   ctx.fillStyle = 'black';
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = lineThickness;
   
-  // Plot each coordinate - similar to the Python version
-  coordinates.forEach(coord => {
-    // Adjust coordinates to account for padding and minimum values
-    const adjustedX = coord.x - minX + padding;
-    const adjustedY = coord.y - minY + padding;
+  // If we have coordinates, draw them
+  if (coordinates && coordinates.length > 0) {
+    // Start a path
+    ctx.beginPath();
+    ctx.moveTo(coordinates[0].x, coordinates[0].y);
     
-    // Draw the point as a small square
-    ctx.fillRect(
-      adjustedX - Math.floor(pointSize/2), 
-      adjustedY - Math.floor(pointSize/2), 
-      pointSize, 
-      pointSize
-    );
-  });
-  
-  // // Draw lines between points (optional - remove if you want just points)
-  // if (coordinates.length > 1) {
-  //   ctx.strokeStyle = 'black';
-  //   ctx.lineWidth = 1;
-  //   ctx.beginPath();
+    // Connect all points with lines
+    for (let i = 1; i < coordinates.length; i++) {
+      ctx.lineTo(coordinates[i].x, coordinates[i].y);
+    }
     
-  //   // Adjust first coordinate
-  //   const firstX = coordinates[0].x - minX + padding;
-  //   const firstY = coordinates[0].y - minY + padding;
-  //   ctx.moveTo(firstX, firstY);
-    
-  //   // Connect remaining points
-  //   for (let i = 1; i < coordinates.length; i++) {
-  //     const adjustedX = coordinates[i].x - minX + padding;
-  //     const adjustedY = coordinates[i].y - minY + padding;
-  //     ctx.lineTo(adjustedX, adjustedY);
-  //   }
-    
-  //   ctx.stroke();
-  // }
+    // Stroke the path
+    ctx.stroke();
+  }
 
   // Return both the canvas and the BMP data
   return {
@@ -210,74 +166,79 @@ const BluetoothPage = () => {
   };
 
   // Process received data based on message format
-const processData = (data) => {
-  // Check for control messages (START, STOP, END)
-  if (data.includes('START-')) {
-    sessionStateRef.current = 'collecting';
-    log(`New data collection session started: ${data}`);
-    setCoordinates([]);
-    return;
-  }
-  
-  if (data.includes('STOP-')) {
-    sessionStateRef.current = 'waiting_for_date';
-    log(`Data collection stopped: ${data}`);
-    log(`Total coordinates received: ${coordinates.length}`);
-    // Force a preview update when we stop collecting
-    setTimeout(() => updateCanvasPreview(), 100);
-    return;
-  }
-  
-  if (data.includes('DATE-')) {
-    sessionStateRef.current = 'has_date';
-    // Extract date information from format "DATE-[counter]:[month],[day]"
-    const dateContent = data.split(':')[1] || '';
-    setDateInfo(dateContent);
-    log(`Date received: ${dateContent}`);
-    return;
-  }
-  
-  if (data.includes('END-')) {
-    sessionStateRef.current = 'completed';
-    log(`Session completed: ${data}`);
-    log(`Final coordinates count: ${coordinates.length}`);
-    // Generate preview when session is completed
-    setTimeout(() => updateCanvasPreview(), 100);
-    return;
-  }
-  
-  // Process coordinate data (format: "[counter]:[x],[y]")
-  if (sessionStateRef.current === 'collecting' && data.includes(':')) {
-    const parts = data.split(':');
-    if (parts.length === 2) {
-      const coordData = parts[1];
-      const [rawX, rawY] = coordData.split(',').map(Number);
-      
-      if (!isNaN(rawX) && !isNaN(rawY)) {
-        // Add debugging info for raw coordinates
-        log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
+  const processData = (data) => {
+    // Check for control messages (START, STOP, END)
+    if (data.includes('START-')) {
+      sessionStateRef.current = 'collecting';
+      log(`New data collection session started: ${data}`);
+      setCoordinates([]);
+      return;
+    }
+    
+    if (data.includes('STOP-')) {
+      sessionStateRef.current = 'waiting_for_date';
+      log(`Data collection stopped: ${data}`);
+      log(`Total coordinates received: ${coordinates.length}`);
+      // Force a preview update when we stop collecting
+      setTimeout(() => updateCanvasPreview(), 100);
+      return;
+    }
+    
+    if (data.includes('DATE-')) {
+      sessionStateRef.current = 'has_date';
+      // Extract date information from format "DATE-[counter]:[month],[day]"
+      const dateContent = data.split(':')[1] || '';
+      setDateInfo(dateContent);
+      log(`Date received: ${dateContent}`);
+      return;
+    }
+    
+    if (data.includes('END-')) {
+      sessionStateRef.current = 'completed';
+      log(`Session completed: ${data}`);
+      log(`Final coordinates count: ${coordinates.length}`);
+      // Generate preview when session is completed
+      setTimeout(() => updateCanvasPreview(), 100);
+      return;
+    }
+    
+    // Process coordinate data (format: "[counter]:[x],[y]")
+    if (sessionStateRef.current === 'collecting' && data.includes(':')) {
+      const parts = data.split(':');
+      if (parts.length === 2) {
+        const coordData = parts[1];
+        const [rawX, rawY] = coordData.split(',').map(Number);
         
-        // Store the exact coordinates without any modifications
-        setCoordinates(prev => {
-          const newCoords = [...prev, { x: rawX, y: rawY }];
+        if (!isNaN(rawX) && !isNaN(rawY)) {
+          // Add debugging info for raw coordinates
+          log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
           
-          // Log coordinate info periodically
-          if (newCoords.length % 5 === 0) {
-            log(`Total coordinates: ${newCoords.length}, Latest: (${rawX},${rawY})`);
-          }
+          // Scale coordinates to fit the canvas dimensions if needed
+          // Assuming the raw coordinates might be in a different scale
+          // You may need to adjust these scaling factors based on your device output
+          const x = Math.min(Math.max(rawX, 0), imageWidth); 
+          const y = Math.min(Math.max(rawY, 0), imageHeight);
           
-          // If we've collected enough new points, update the preview
-          if (newCoords.length % 10 === 0 || newCoords.length === 1) {
-            setTimeout(() => updateCanvasPreview(), 50);
-          }
-          return newCoords;
-        });
-      } else {
-        log(`Invalid coordinate data: ${coordData}`);
+          setCoordinates(prev => {
+            const newCoords = [...prev, { x, y }];
+            
+            // Log coordinate info periodically
+            if (newCoords.length % 5 === 0) {
+              log(`Total coordinates: ${newCoords.length}, Latest: (${x},${y})`);
+            }
+            
+            // If we've collected enough new points, update the preview
+            if (newCoords.length % 10 === 0 || newCoords.length === 1) {
+              setTimeout(() => updateCanvasPreview(), 50);
+            }
+            return newCoords;
+          });
+        } else {
+          log(`Invalid coordinate data: ${coordData}`);
+        }
       }
     }
-  }
-};
+  };
 
   // Handle data received from the BLE characteristic
   const handleDataReceived = (value) => {
@@ -318,7 +279,7 @@ const processData = (data) => {
           handleDisconnection();
         }
       }
-    }, 1); // Poll every 10ms
+    }, 10); // Poll every 10ms
   };
 
   // Connect to the Adafruit device
@@ -374,42 +335,77 @@ const processData = (data) => {
     }
   };
   
- // Update canvas preview with current coords
-const updateCanvasPreview = () => {
-  if (coordinates.length === 0) {
-    log('No coordinates to update preview');
-    return;
-  }
-  
-  try {
-    log(`Updating preview with ${coordinates.length} points`);
-    
-    // Log some coordinate samples for debugging
-    if (coordinates.length > 0) {
-      log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
-      if (coordinates.length > 1) {
-        const lastIdx = coordinates.length - 1;
-        log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
-      }
+  // Update canvas preview with current coords
+  const updateCanvasPreview = () => {
+    if (coordinates.length === 0) {
+      log('No coordinates to update preview');
+      return;
     }
     
-    // Use the Python-style coordinate plotting function
-    const padding = 20; // Padding around the edges
-    const pointSize = 3; // Size of each point
-    
-    const result = createBMPFile(coordinates, padding, pointSize);
-    if (result) {
+    try {
+      log(`Updating preview with ${coordinates.length} points`);
+      
+      // Log some coordinate samples for debugging
+      if (coordinates.length > 0) {
+        log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
+        if (coordinates.length > 1) {
+          const lastIdx = coordinates.length - 1;
+          log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
+        }
+      }
+      
+      // Analyze coordinates to see if they need scaling
+      let minX = Number.MAX_VALUE, minY = Number.MAX_VALUE;
+      let maxX = 0, maxY = 0;
+      
+      coordinates.forEach(coord => {
+        minX = Math.min(minX, coord.x);
+        minY = Math.min(minY, coord.y);
+        maxX = Math.max(maxX, coord.x);
+        maxY = Math.max(maxY, coord.y);
+      });
+      
+      log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+      
+      // Determine if scaling is needed
+      const needsScaling = maxX > imageWidth || maxY > imageHeight || 
+                          (maxX < imageWidth/2 && maxY < imageHeight/2);
+      
+      let scaledCoordinates = [...coordinates];
+      
+      if (needsScaling) {
+        log('Applying coordinate scaling to fit canvas');
+        
+        // Calculate scaling factors
+        const paddingFactor = 0.9; // Leave 10% padding
+        const xScale = (imageWidth * paddingFactor) / (maxX - minX || 1);
+        const yScale = (imageHeight * paddingFactor) / (maxY - minY || 1);
+        const scale = Math.min(xScale, yScale);
+        
+        // Calculate centering offset
+        const xOffset = (imageWidth - (maxX - minX) * scale) / 2;
+        const yOffset = (imageHeight - (maxY - minY) * scale) / 2;
+        
+        // Apply scaling and offset
+        scaledCoordinates = coordinates.map(coord => ({
+          x: (coord.x - minX) * scale + xOffset,
+          y: (coord.y - minY) * scale + yOffset
+        }));
+        
+        log(`Applied scaling factor: ${scale.toFixed(2)}`);
+      }
+      
+      // Generate BMP with optionally scaled coordinates
+      const result = createBMPFile(scaledCoordinates, imageWidth, imageHeight);
       setCanvasPreview(result.previewUrl);
       setBmpData(result.bmpBlob);
-      log('Canvas preview updated successfully with exact coordinates');
-    } else {
-      log('Failed to create canvas preview');
+      
+      log('Canvas preview updated successfully');
+    } catch (err) {
+      log(`Error updating canvas preview: ${err.message}`);
+      console.error("Preview update error:", err);
     }
-  } catch (err) {
-    log(`Error updating canvas preview: ${err.message}`);
-    console.error("Preview update error:", err);
-  }
-};
+  };
 
   // Clean up resources when component unmounts
   useEffect(() => {
