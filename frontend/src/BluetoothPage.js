@@ -535,7 +535,7 @@ const processData = (data) => {
           borderRadius: '8px',
           marginBottom: '15px'
         }}>
-          <h3>Preview ur MOM</h3>
+          <h3>Preview Image</h3>
           {canvasPreview ? (
             <div style={{ border: '1px solid #ddd', background: '#fff', padding: '5px' }}>
               <img 
