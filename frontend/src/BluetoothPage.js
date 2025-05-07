@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { auth } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import GoogleLoginButton from './GoogleLoginButton';
+import CalendarComponent from './CalendarComponent';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 
 // Match UUIDs with the Adafruit device
 const CALENDAR_SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
@@ -123,6 +128,30 @@ const canvasToBMP = (canvas) => {
 
 
 const BluetoothPage = () => {
+  //app stuff lmao
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLoginSuccess = (loggedInUser, token) => {
+    setUser(loggedInUser);
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+
+
+  //old
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [currentData, setCurrentData] = useState(null);
@@ -380,215 +409,271 @@ const processData = (data) => {
 
   // Render the UI
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Bluetooth Calendar</h2>
-      <p><strong>Status:</strong> {status}</p>
-      
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <button 
-          onClick={connectToDevice}
-          disabled={connectedDevice !== null}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: connectedDevice ? '#cccccc' : '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: connectedDevice ? 'default' : 'pointer'
-          }}
-        >
-          Connect to Calendar Device
-        </button>
-        
-        <button 
-          onClick={handleGenerateBMP}
-          disabled={coordinates.length === 0}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: coordinates.length === 0 ? 'default' : 'pointer'
-          }}
-        >
-          Generate BMP
-        </button>
-      </div>
-
-      {/* Image Size Controls */}
-      <div style={{ 
-        marginBottom: '20px',
-        padding: '15px',
-        backgroundColor: '#f0f0f0',
-        borderRadius: '8px',
-        maxWidth: '500px'
-      }}>
-        <h3 style={{ marginTop: 0 }}>BMP Settings</h3>
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Width:</label>
-            <input 
-              type="number" 
-              value={imageWidth} 
-              onChange={(e) => setImageWidth(Number(e.target.value))}
-              min="100"
-              max="2000"
-              style={{ padding: '5px', width: '80px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Height:</label>
-            <input 
-              type="number" 
-              value={imageHeight} 
-              onChange={(e) => setImageHeight(Number(e.target.value))}
-              min="100"
-              max="2000"
-              style={{ padding: '5px', width: '80px' }}
-            />
-          </div>
-          <button 
-            onClick={updateCanvasPreview}
-            disabled={coordinates.length === 0}
-            style={{ 
-              padding: '8px 16px',
-              backgroundColor: '#607D8B',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              marginTop: '20px'
-            }}
-          >
-            Update Preview
-          </button>
-        </div>
-      </div>
-
-      {/* Data Display Section */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-        {/* Left Column - Status and Data */}
-        <div style={{ flex: '1 1 400px' }}>
-          <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-              {/* Current Info Panel */}
-              <div style={{ 
-                flex: '1 1 300px',  
-                padding: '15px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '8px',
-                marginBottom: '15px'
-              }}>
-                <h3>Current Data</h3>
-                <p><strong>Last Message:</strong> {currentData || 'None'}</p>
-                <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
-                <p><strong>Session State:</strong> {sessionStateRef.current}</p>
-                <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
-              </div>
-
-              {/* Message History Panel */}
-              <div style={{
-                flex: '1 1 300px',
-                padding: '15px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '8px',
-                marginBottom: '15px'
-              }}>
-                <h3>Message History</h3>
-                <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
-                  {messageHistory.length > 0 ? (
-                    messageHistory.map((entry, idx) => (
-                      <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
-                    ))
+    <Router>
+      <div className="app">
+        <header>
+          {/*  [ADDED] Button to go to Bluetooth Page */}
+              <div style={{marginTop:'10px', marginRight: '10px', textAlign: 'right'}}>
+                {user ? (
+                    <div className="user-info">
+                      <img src={user.photoURL} alt="Profile" className="profile-pic" />
+                      <span>Welcome, {user.displayName}</span>
+                      <button onClick={() => auth.signOut()}>Sign Out</button>
+                    </div>
                   ) : (
-                    <li>No messages received</li>
-                  )}
-                </ul>
+                    <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
+                )}
               </div>
-            </div>
+        </header>        
+      
 
-            {/* Debug Console */}
-            <div style={{ marginTop: '20px' }}>
-              <h3>Debug Console</h3>
-              <pre style={{ 
-                background: '#333', 
-                color: '#f3f3f3',
-                padding: '10px', 
-                height: '200px', 
-                overflowY: 'scroll',
-                fontFamily: 'monospace',
-                borderRadius: '4px'
-              }}>
-                {debugLog.length > 0 ? 
-                  debugLog.map((line, i) => <div key={i}>{line}</div>) : 
-                  "No debug logs yet"}
-              </pre>
-            </div>
-          </div>
-        </div>
+      <Route
+            path="/"
+            element={
+              <main>
 
-        {/* Right Column - Canvas Preview and BMP Data */}
-        <div style={{ 
-          flex: '1 1 300px', 
-          padding: '15px',
-          backgroundColor: '#f5f5f5',
-          borderRadius: '8px',
-          marginBottom: '15px'
-        }}>
-          <h3>Preview Image</h3>
-          {canvasPreview ? (
-            <div style={{ border: '1px solid #ddd', background: '#fff', padding: '5px' }}>
-              <img 
-                src={canvasPreview} 
-                alt="Drawing Preview" 
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: '400px',
-                  display: 'block'
-                }} 
-              />
-            </div>
-          ) : (
-            <div style={{ 
-              border: '1px solid #ddd', 
-              background: '#fff', 
-              padding: '20px',
-              textAlign: 'center',
-              color: '#999'
-            }}>
-              {coordinates.length > 0 ? 
-                "Preview loading..." : 
-                "No coordinates available to display preview"}
-            </div>
-          )}
-          <p style={{ fontSize: '0.9em', color: '#666', marginTop: '10px' }}>
-            {canvasPreview ? 
-              `Preview of the BMP image (${imageWidth}×${imageHeight} pixels).
-              ${bmpData ? `The BMP data is ${Math.round(bmpData.size / 1024)} KB.` : ''}` :
-              "Generate a preview by adding coordinates and clicking 'Update Preview'"
+                <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
+
+                {user ? (
+                  <CalendarComponent />
+                ) : (
+                  <div className="login-prompt" style= {{textAlign: 'center'}}>
+                    <p>Please sign in with Google to access your calendar</p>
+                  </div>
+                )}
+                <div style={{textAlign: 'center', marginTop: '40%'}}>
+                    <button 
+                    onClick={connectToDevice}
+                    disabled={connectedDevice !== null}
+                    style={{
+                      border: '0.5px solid #1e1e1e', 
+                      backgroundColor: '#C5C5F1', 
+                      borderRadius: '30px', 
+                      width: '200px', 
+                      height: '75px',
+                      color: '#1e1e1e',
+                      fontSize: '20px'
+                    }}>Connect to Calendar</button>
+                </div>
+                  
+              </main>
             }
-          </p>
+          />
+
+
+        {/* debug stuff :p */}
+        <div style={{ padding: '20px' }}>
+          <h2>Bluetooth Calendar</h2>
+          <p><strong>Status:</strong> {status}</p>
           
-          {/* Add button to use with Google Vision - you'd integrate this with your API code */}
-          {bmpData && (
-            <button
-              onClick={() => log('BMP data ready for Vision API')}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <button 
+              onClick={connectToDevice}
+              disabled={connectedDevice !== null}
               style={{ 
                 padding: '8px 16px',
-                backgroundColor: '#FF5722',
+                backgroundColor: connectedDevice ? '#cccccc' : '#4CAF50',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                marginTop: '10px',
-                cursor: 'pointer'
+                cursor: connectedDevice ? 'default' : 'pointer'
               }}
             >
-              Send to Vision API
+              Connect to Calendar Device
             </button>
-          )}
+            
+            <button 
+              onClick={handleGenerateBMP}
+              disabled={coordinates.length === 0}
+              style={{ 
+                padding: '8px 16px',
+                backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: coordinates.length === 0 ? 'default' : 'pointer'
+              }}
+            >
+              Generate BMP
+            </button>
+          </div>
+
+          {/* Image Size Controls */}
+          <div style={{ 
+            marginBottom: '20px',
+            padding: '15px',
+            backgroundColor: '#f0f0f0',
+            borderRadius: '8px',
+            maxWidth: '500px'
+          }}>
+            <h3 style={{ marginTop: 0 }}>BMP Settings</h3>
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px' }}>Width:</label>
+                <input 
+                  type="number" 
+                  value={imageWidth} 
+                  onChange={(e) => setImageWidth(Number(e.target.value))}
+                  min="100"
+                  max="2000"
+                  style={{ padding: '5px', width: '80px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px' }}>Height:</label>
+                <input 
+                  type="number" 
+                  value={imageHeight} 
+                  onChange={(e) => setImageHeight(Number(e.target.value))}
+                  min="100"
+                  max="2000"
+                  style={{ padding: '5px', width: '80px' }}
+                />
+              </div>
+              <button 
+                onClick={updateCanvasPreview}
+                disabled={coordinates.length === 0}
+                style={{ 
+                  padding: '8px 16px',
+                  backgroundColor: '#607D8B',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  marginTop: '20px'
+                }}
+              >
+                Update Preview
+              </button>
+            </div>
+          </div>
+
+          {/* Data Display Section */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+            {/* Left Column - Status and Data */}
+            <div style={{ flex: '1 1 400px' }}>
+              <div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+                  {/* Current Info Panel */}
+                  <div style={{ 
+                    flex: '1 1 300px',  
+                    padding: '15px',
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: '8px',
+                    marginBottom: '15px'
+                  }}>
+                    <h3>Current Data</h3>
+                    <p><strong>Last Message:</strong> {currentData || 'None'}</p>
+                    <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
+                    <p><strong>Session State:</strong> {sessionStateRef.current}</p>
+                    <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
+                  </div>
+
+                  {/* Message History Panel */}
+                  <div style={{
+                    flex: '1 1 300px',
+                    padding: '15px',
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: '8px',
+                    marginBottom: '15px'
+                  }}>
+                    <h3>Message History</h3>
+                    <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
+                      {messageHistory.length > 0 ? (
+                        messageHistory.map((entry, idx) => (
+                          <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
+                        ))
+                      ) : (
+                        <li>No messages received</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Debug Console */}
+                <div style={{ marginTop: '20px' }}>
+                  <h3>Debug Console</h3>
+                  <pre style={{ 
+                    background: '#333', 
+                    color: '#f3f3f3',
+                    padding: '10px', 
+                    height: '200px', 
+                    overflowY: 'scroll',
+                    fontFamily: 'monospace',
+                    borderRadius: '4px'
+                  }}>
+                    {debugLog.length > 0 ? 
+                      debugLog.map((line, i) => <div key={i}>{line}</div>) : 
+                      "No debug logs yet"}
+                  </pre>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Canvas Preview and BMP Data */}
+            <div style={{ 
+              flex: '1 1 300px', 
+              padding: '15px',
+              backgroundColor: '#f5f5f5',
+              borderRadius: '8px',
+              marginBottom: '15px'
+            }}>
+              <h3>Preview Image</h3>
+              {canvasPreview ? (
+                <div style={{ border: '1px solid #ddd', background: '#fff', padding: '5px' }}>
+                  <img 
+                    src={canvasPreview} 
+                    alt="Drawing Preview" 
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '400px',
+                      display: 'block'
+                    }} 
+                  />
+                </div>
+              ) : (
+                <div style={{ 
+                  border: '1px solid #ddd', 
+                  background: '#fff', 
+                  padding: '20px',
+                  textAlign: 'center',
+                  color: '#999'
+                }}>
+                  {coordinates.length > 0 ? 
+                    "Preview loading..." : 
+                    "No coordinates available to display preview"}
+                </div>
+              )}
+              <p style={{ fontSize: '0.9em', color: '#666', marginTop: '10px' }}>
+                {canvasPreview ? 
+                  `Preview of the BMP image (${imageWidth}×${imageHeight} pixels).
+                  ${bmpData ? `The BMP data is ${Math.round(bmpData.size / 1024)} KB.` : ''}` :
+                  "Generate a preview by adding coordinates and clicking 'Update Preview'"
+                }
+              </p>
+              
+              {/* Add button to use with Google Vision - you'd integrate this with your API code */}
+              {bmpData && (
+                <button
+                  onClick={() => log('BMP data ready for Vision API')}
+                  style={{ 
+                    padding: '8px 16px',
+                    backgroundColor: '#FF5722',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    marginTop: '10px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Send to Vision API
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </Router>
+    
   );
 };
 
