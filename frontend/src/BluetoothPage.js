@@ -165,80 +165,78 @@ const BluetoothPage = () => {
     log('Device disconnected');
   };
 
-  // Process received data based on message format
-  const processData = (data) => {
-    // Check for control messages (START, STOP, END)
-    if (data.includes('START-')) {
-      sessionStateRef.current = 'collecting';
-      log(`New data collection session started: ${data}`);
-      setCoordinates([]);
-      return;
-    }
-    
-    if (data.includes('STOP-')) {
-      sessionStateRef.current = 'waiting_for_date';
-      log(`Data collection stopped: ${data}`);
-      log(`Total coordinates received: ${coordinates.length}`);
-      // Force a preview update when we stop collecting
-      setTimeout(() => updateCanvasPreview(), 100);
-      return;
-    }
-    
-    if (data.includes('DATE-')) {
-      sessionStateRef.current = 'has_date';
-      // Extract date information from format "DATE-[counter]:[month],[day]"
-      const dateContent = data.split(':')[1] || '';
-      setDateInfo(dateContent);
-      log(`Date received: ${dateContent}`);
-      return;
-    }
-    
-    if (data.includes('END-')) {
-      sessionStateRef.current = 'completed';
-      log(`Session completed: ${data}`);
-      log(`Final coordinates count: ${coordinates.length}`);
-      // Generate preview when session is completed
-      setTimeout(() => updateCanvasPreview(), 100);
-      return;
-    }
-    
-    // Process coordinate data (format: "[counter]:[x],[y]")
-    if (sessionStateRef.current === 'collecting' && data.includes(':')) {
-      const parts = data.split(':');
-      if (parts.length === 2) {
-        const coordData = parts[1];
-        const [rawX, rawY] = coordData.split(',').map(Number);
+// Process received data based on message format
+const processData = (data) => {
+  // Check for control messages (START, STOP, END)
+  if (data.includes('START-')) {
+    sessionStateRef.current = 'collecting';
+    log(`New data collection session started: ${data}`);
+    setCoordinates([]);
+    return;
+  }
+  
+  if (data.includes('STOP-')) {
+    sessionStateRef.current = 'waiting_for_date';
+    log(`Data collection stopped: ${data}`);
+    log(`Total coordinates received: ${coordinates.length}`);
+    // Force a preview update when we stop collecting
+    setTimeout(() => updateCanvasPreview(), 100);
+    return;
+  }
+  
+  if (data.includes('DATE-')) {
+    sessionStateRef.current = 'has_date';
+    // Extract date information from format "DATE-[counter]:[month],[day]"
+    const dateContent = data.split(':')[1] || '';
+    setDateInfo(dateContent);
+    log(`Date received: ${dateContent}`);
+    return;
+  }
+  
+  if (data.includes('END-')) {
+    sessionStateRef.current = 'completed';
+    log(`Session completed: ${data}`);
+    log(`Final coordinates count: ${coordinates.length}`);
+    // Generate preview when session is completed
+    setTimeout(() => updateCanvasPreview(), 100);
+    return;
+  }
+  
+  // Process coordinate data (format: "[counter]:[x],[y]")
+  if (sessionStateRef.current === 'collecting' && data.includes(':')) {
+    const parts = data.split(':');
+    if (parts.length === 2) {
+      const coordData = parts[1];
+      const [rawX, rawY] = coordData.split(',').map(Number);
+      
+      if (!isNaN(rawX) && !isNaN(rawY)) {
+        // Add debugging info for raw coordinates
+        log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
         
-        if (!isNaN(rawX) && !isNaN(rawY)) {
-          // Add debugging info for raw coordinates
-          log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
+        // Use the exact coordinates without scaling
+        const x = rawX;
+        const y = rawY;
+        
+        setCoordinates(prev => {
+          const newCoords = [...prev, { x, y }];
           
-          // Scale coordinates to fit the canvas dimensions if needed
-          // Assuming the raw coordinates might be in a different scale
-          // You may need to adjust these scaling factors based on your device output
-          const x = Math.min(Math.max(rawX, 0), imageWidth); 
-          const y = Math.min(Math.max(rawY, 0), imageHeight);
+          // Log coordinate info periodically
+          if (newCoords.length % 5 === 0) {
+            log(`Total coordinates: ${newCoords.length}, Latest: (${x},${y})`);
+          }
           
-          setCoordinates(prev => {
-            const newCoords = [...prev, { x, y }];
-            
-            // Log coordinate info periodically
-            if (newCoords.length % 5 === 0) {
-              log(`Total coordinates: ${newCoords.length}, Latest: (${x},${y})`);
-            }
-            
-            // If we've collected enough new points, update the preview
-            if (newCoords.length % 10 === 0 || newCoords.length === 1) {
-              setTimeout(() => updateCanvasPreview(), 50);
-            }
-            return newCoords;
-          });
-        } else {
-          log(`Invalid coordinate data: ${coordData}`);
-        }
+          // If we've collected enough new points, update the preview
+          if (newCoords.length % 10 === 0 || newCoords.length === 1) {
+            setTimeout(() => updateCanvasPreview(), 50);
+          }
+          return newCoords;
+        });
+      } else {
+        log(`Invalid coordinate data: ${coordData}`);
       }
     }
-  };
+  }
+};
 
   // Handle data received from the BLE characteristic
   const handleDataReceived = (value) => {
@@ -279,7 +277,7 @@ const BluetoothPage = () => {
           handleDisconnection();
         }
       }
-    }, 10); // Poll every 10ms
+    }, 1); // Poll every 10ms
   };
 
   // Connect to the Adafruit device
@@ -354,53 +352,13 @@ const BluetoothPage = () => {
         }
       }
       
-      // Analyze coordinates to see if they need scaling
-      let minX = Number.MAX_VALUE, minY = Number.MAX_VALUE;
-      let maxX = 0, maxY = 0;
-      
-      coordinates.forEach(coord => {
-        minX = Math.min(minX, coord.x);
-        minY = Math.min(minY, coord.y);
-        maxX = Math.max(maxX, coord.x);
-        maxY = Math.max(maxY, coord.y);
-      });
-      
-      log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
-      
-      // Determine if scaling is needed
-      const needsScaling = maxX > imageWidth || maxY > imageHeight || 
-                          (maxX < imageWidth/2 && maxY < imageHeight/2);
-      
-      let scaledCoordinates = [...coordinates];
-      
-      if (needsScaling) {
-        log('Applying coordinate scaling to fit canvas');
-        
-        // Calculate scaling factors
-        const paddingFactor = 0.9; // Leave 10% padding
-        const xScale = (imageWidth * paddingFactor) / (maxX - minX || 1);
-        const yScale = (imageHeight * paddingFactor) / (maxY - minY || 1);
-        const scale = Math.min(xScale, yScale);
-        
-        // Calculate centering offset
-        const xOffset = (imageWidth - (maxX - minX) * scale) / 2;
-        const yOffset = (imageHeight - (maxY - minY) * scale) / 2;
-        
-        // Apply scaling and offset
-        scaledCoordinates = coordinates.map(coord => ({
-          x: (coord.x - minX) * scale + xOffset,
-          y: (coord.y - minY) * scale + yOffset
-        }));
-        
-        log(`Applied scaling factor: ${scale.toFixed(2)}`);
-      }
-      
-      // Generate BMP with optionally scaled coordinates
-      const result = createBMPFile(scaledCoordinates, imageWidth, imageHeight);
+      // Use coordinates directly without scaling
+      // Generate BMP with the exact coordinates
+      const result = createBMPFile(coordinates, imageWidth, imageHeight);
       setCanvasPreview(result.previewUrl);
       setBmpData(result.bmpBlob);
       
-      log('Canvas preview updated successfully');
+      log('Canvas preview updated successfully with exact coordinates (no scaling)');
     } catch (err) {
       log(`Error updating canvas preview: ${err.message}`);
       console.error("Preview update error:", err);
