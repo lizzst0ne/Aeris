@@ -71,7 +71,7 @@ function App() {
       <div className="app">
         <header>
           {/*  [ADDED] Button to go to Bluetooth Page */}
-              <div style={{textAlign: 'left'}}>
+              <div style={{marginTop:'10px'}}>
                 {user ? (
                     <div className="user-info">
                       <img src={user.photoURL} alt="Profile" className="profile-pic" />
@@ -95,7 +95,7 @@ function App() {
             element={
               <main>
 
-                <h1 style={{textAlign: 'center'}}>Aetas Calendar</h1>
+                <h1 style={{textAlign: 'center', marginTop:'10%'}}>Aetas Calendar</h1>
 
                 {user ? (
                   <CalendarComponent />
