@@ -3,6 +3,8 @@ import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import GoogleLoginButton from './GoogleLoginButton';
 import CalendarComponent from './CalendarComponent';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import App from './App';
 
 // Match UUIDs with the Adafruit device
 const CALENDAR_SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
