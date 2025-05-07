@@ -100,7 +100,7 @@ int numEntriesSame;
 
 // Timing variables for send control
 unsigned long lastCoordSendTime = 0;
-const unsigned long COORD_SEND_INTERVAL = 10; // Send coordinates every 100ms
+const unsigned long COORD_SEND_INTERVAL = 2; // Send coordinates every 100ms
 unsigned long messageCounter = 0; // To ensure each message is unique
 unsigned long lastButtonPress = 0;
 const unsigned long debounceTime = 300; // Debounce time for button
@@ -513,7 +513,7 @@ void sendData(){
     char stopMsg[20];
     sprintf(stopMsg, "STOP-%lu", messageCounter++);
     sendMessage(stopMsg);
-    delay(10);  // Small delay between messages
+    delay(2);  // Small delay between messages
     
     // Save date to internal storage and send it
     if(InternalFS.exists(DATES)){
@@ -530,14 +530,14 @@ void sendData(){
       char dateMsg[20];
       sprintf(dateMsg, "DATE-%lu:%s", messageCounter++, datBuffer);
       sendMessage(dateMsg);
-      delay(10);
+      delay(2);
     }
     
     // Send "END" marker with timestamp
     char endMsg[20];
     sprintf(endMsg, "END-%lu", messageCounter++);
     sendMessage(endMsg);
-    delay(10);
+    delay(2);
     
     // Send "START" marker for next data set
     char startMsg[20];
