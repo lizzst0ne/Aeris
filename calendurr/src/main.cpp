@@ -11,7 +11,9 @@
 
 using namespace Adafruit_LittleFS_Namespace;
 
-/*--------------  Pin and Var Init  ----------------*/
+/*--------------------------------------------------*/
+/*--       PIN AND VARIABLE INITIALIZATION        --*/
+/*--------------------------------------------------*/
 
 /*------------------------------------------*/
 /*  Battery Pin - Analog Pin 6              */
@@ -151,9 +153,12 @@ void monthChange();
 void whatsTheDate();
 void sendMessage(const char* msg);
 
-/*-----------------  SETUP FCN   -------------------*/
+/*--------------------------------------------------*/
+/*--                SETUP FUNCTION                --*/
+/*--------------------------------------------------*/
 void setup() {
   // Serial.begin(115200); // <- for debugging
+
   /*---------------------------------------------------*/
   /*   Pin setup for user input (sensor, button, dial) */
   /*---------------------------------------------------*/
@@ -168,18 +173,17 @@ void setup() {
   digitalWrite(BOTTOM_R, LOW);
   // set sense pin to input
   pinMode(SENSE, INPUT);
-
+  // Buttons
   pinMode(SEND_BUTTON, INPUT);
   pinMode(BLE_BUTTON, INPUT);
-
+  // RPGs
   pinMode(DAY_A, INPUT);
   pinMode(DAY_B, INPUT);
   pinMode(MONTH_A, INPUT);
   pinMode(MONTH_B, INPUT);
-
   attachInterrupt(DAY_A, dayChange, RISING);
   attachInterrupt(MONTH_A, monthChange, RISING);
-
+  // RPG status
   dayB_status = digitalRead(DAY_B);
   monthB_status = digitalRead(MONTH_B);
 
@@ -200,29 +204,18 @@ void setup() {
   batteryChange = 0;
   batteryCheckTime = millis();
 
-  // Initialize coordinate variables
-  last_x = 0;
+  /*---------------------------------------------------*/
+  /*    Initialize Coordinate Processing Variables     */
+  /*---------------------------------------------------*/
+  last_x = 0; 
   last_y = 0;
   filtered_x = 0;
   filtered_y = 0;
-  avg_x = 0;
-  avg_y = 0;
-  last_avg_x = 0;
-  last_avg_y = 0;
-  temp_x = 0;
-  temp_y = 0;
-  last_avg_x_2 = 0;
-  last_avg_y_2 = 0;
-  temp_x_2 = 0;
-  temp_y_2 = 0;
-  last_avg_x_3 = 0;
-  last_avg_y_3 = 0;
-  temp_x_3 = 0;
-  temp_y_3 = 0;
-  last_avg_x_4 = 0;
-  last_avg_y_4 = 0;
-  temp_x_4 = 0;
-  temp_y_4 = 0;
+  avg_x, last_avg_x, last_avg_x_2, last_avg_x_3, last_avg_x_4 = 0;
+  avg_y, last_avg_y, last_avg_y_2, last_avg_y_3, last_avg_y_4 = 0;
+  temp_x, temp_x_2, temp_x_3, temp_x_4 = 0;
+  temp_y, temp_y_2, temp_y_3, temp_y_4 = 0;
+
 
   /*---------------------------------------------------*/
   /*    Bluetooth BLE CONFIG                           */
@@ -314,7 +307,9 @@ void setup() {
   startAdv();
 }
 
-/*-----------------  MAIN LOOP   -------------------*/
+/*--------------------------------------------------*/
+/*--                  MAIN LOOP                   --*/
+/*--------------------------------------------------*/
 void loop() {
   whatsTheDate();
 
@@ -363,11 +358,24 @@ void loop() {
   delay(1);
 }
 
-// Helper function to send messages with the proper format
+/*--------------------------------------------------*/
+/*--                sendMessage()                 --*/
+/*--------------------------------------------------*/
+/*    Helper function to send messages with the     */
+/*    proper format                                 */
+/*--------------------------------------------------*/
 void sendMessage(const char* msg) {
   dataCharacteristic.write((uint8_t*)msg, strlen(msg));
 }
 
+/*--------------------------------------------------*/
+/*--                 readSensor()                 --*/
+/*--------------------------------------------------*/
+/*    Reads in ADC values for x and y. Shifts       */
+/*    values to more readable coordinates. Filters  */
+/*    the coordinates then averages them before     */
+/*    sending.                                      */
+/*--------------------------------------------------*/
 void readSensor(){
     // set up pins to read in X coordinate
     digitalWrite(TOP_R, HIGH);
@@ -543,6 +551,14 @@ void readSensor(){
     last_y = y_pos;
 }
 
+/*--------------------------------------------------*/
+/*--                  sendData()                  --*/
+/*--------------------------------------------------*/
+/*    Called when SEND_BUTTON is pressed. Sends     */
+/*    "STOP", sends the set date, saves date to     */
+/*    memory, then sends "END" and "START" to       */
+/*    distinguish entries.                          */
+/*--------------------------------------------------*/
 void sendData(){
   if(Bluefruit.connected()){
     // Send "STOP" marker with timestamp to ensure uniqueness
@@ -582,6 +598,12 @@ void sendData(){
   }
 }
 
+/*--------------------------------------------------*/
+/*--                  startAdv()                  --*/
+/*--------------------------------------------------*/
+/*    Begin BLE advertising. Initializes how BLE    */
+/*    connection behaves.                           */
+/*--------------------------------------------------*/
 void startAdv(){
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
   Bluefruit.Advertising.addTxPower();
@@ -597,6 +619,11 @@ void startAdv(){
   Bluefruit.Advertising.start(0);                // 0 = Don't stop advertising 
 }
 
+/*--------------------------------------------------*/
+/*--              connect_callback()              --*/
+/*--------------------------------------------------*/
+/*    Event handler for when BLE connects           */
+/*--------------------------------------------------*/
 void connect_callback(uint16_t conn_handle){
   isConnected = true;
   
@@ -610,10 +637,21 @@ void connect_callback(uint16_t conn_handle){
   blebas.write(battLevel);
 }
 
+/*--------------------------------------------------*/
+/*--            disconnect_callback()             --*/
+/*--------------------------------------------------*/
+/*    Event handler for when BLE disconnects        */
+/*--------------------------------------------------*/
 void disconnect_callback(uint16_t conn_handle, uint8_t reason){
   isConnected = false;
 }
 
+/*--------------------------------------------------*/
+/*--                 dayChange()                  --*/
+/*--------------------------------------------------*/
+/*  Interrupt attached to day RPG. Updates the      */
+/*  set day based on the direction turned.          */
+/*--------------------------------------------------*/
 void dayChange(){
   int time = millis();
   int diff = time - dayTime;
@@ -657,6 +695,12 @@ void dayChange(){
   dayTime = millis();
 }
 
+/*--------------------------------------------------*/
+/*--                monthChange()                 --*/
+/*--------------------------------------------------*/
+/*  Interrupt attached to month RPG. Updates the    */
+/*  set month based on the direction turned.        */
+/*--------------------------------------------------*/
 void monthChange(){
   int time = millis();
   int diff = time - monthTime;
@@ -685,11 +729,13 @@ void monthChange(){
   monthTime = millis();
 }
 
-/*----------------------------------*/
-/* Displays the date, month, BLE    */
-/* connectivity status, and battery */
-/* percent on the OLED screen.      */
-/*----------------------------------*/
+/*--------------------------------------------------*/
+/*--                whatsTheDate()                --*/
+/*--------------------------------------------------*/
+/* Displays the date, month, BLE                    */
+/* connectivity status, and battery                 */
+/* percent on the OLED screen.                      */
+/*--------------------------------------------------*/
 void whatsTheDate(){
 
   bool changeNeeded = false;
@@ -743,28 +789,28 @@ void whatsTheDate(){
     float delBattery = batteryPercent - lastPercent;
     // only update battery percent if readings have been 
     // different from the previous value > 5 times 
-    // if(abs(delBattery) > 0){
-    //   batteryChange++;
-    //   if(batteryChange > 5){
-    //     batteryChange = 0;
+    if(abs(delBattery) > 0){
+      batteryChange++;
+      if(batteryChange > 5){
+        batteryChange = 0;
 
         display.setCursor(5, 50);
         display.print("Battery: ");
 
-        // if(batteryPercent >= 100){
-        //   display.println(100);
-        // }
-        // else{
-          display.print(measuredvbat);
+        if(batteryPercent >= 100){
+          display.println(100);
+        }
+        else{
+          display.print(int(batteryPercent));
           display.println("  ");
-        // }
+        }
 
         changeNeeded = true;
-      // }
-    // else if(batteryChange > 0){
-    //     batteryPercent = lastPercent;
-    //   }
-    // }
+      }
+    else if(batteryChange > 0){
+        batteryPercent = lastPercent;
+      }
+    }
 
     batteryCheckTime = millis();
   }
