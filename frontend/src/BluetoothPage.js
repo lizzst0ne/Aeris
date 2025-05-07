@@ -209,8 +209,7 @@ const BluetoothPage = () => {
     log('Device disconnected');
   };
 
-  
-// Process received data based on message format
+  // Process received data based on message format
 const processData = (data) => {
   // Check for control messages (START, STOP, END)
   if (data.includes('START-')) {
