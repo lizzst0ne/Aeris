@@ -405,28 +405,6 @@ const processData = (data) => {
       </div>
 
       <main>
-        <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
-
-        {user ? (
-          <CalendarComponent />
-        ) : (
-          <div className="login-prompt" style= {{textAlign: 'center'}}>
-            <p>Please sign in with Google to access your calendar</p>
-          </div>
-        )}
-        <div style={{textAlign: 'center', marginTop: '40%'}}>
-            <button onClick={connectToDevice} disabled={connectedDevice !== null} 
-              style={{
-              border: '0.5px solid #1e1e1e', 
-              backgroundColor: '#C5C5F1', 
-              borderRadius: '30px', 
-              width: '200px', 
-              height: '75px',
-              color: '#1e1e1e',
-              fontSize: '20px'
-            }}>Connect to Calendar</button>
-        </div>
-
 
 
 
