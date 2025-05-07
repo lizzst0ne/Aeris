@@ -386,7 +386,7 @@ const processData = (data) => {
 
   // Render the UI
   return (
-    <Router>
+    <Route>
       <div>
         <header>
           {/*  [ADDED] Button to go to Bluetooth Page */}
@@ -646,7 +646,7 @@ const processData = (data) => {
           </div>
         </div>
         </main>
-    </Router>
+    </Route>
   );
 };
 
