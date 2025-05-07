@@ -10,14 +10,14 @@ const formatCoordinateData = (coords) => {
   return `${coords.length} points collected`;
 };
 
-// BMP generation functions inspired by the Python version
-const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
+// Updated BMP generation functions that adapt to coordinates dynamically
+const createBMPFile = (coordinates, padding = 20, pointSize = 3) => {
   if (!coordinates || coordinates.length === 0) {
     log("No coordinates provided for BMP generation");
     return null;
   }
   
-  // Find the dimensions needed for the image (like in Python script)
+  // Find the dimensions needed for the image based on coordinate ranges
   let minX = Number.MAX_VALUE;
   let maxX = Number.MIN_VALUE;
   let minY = Number.MAX_VALUE;
@@ -50,7 +50,7 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
   // Set point color to black
   ctx.fillStyle = 'black';
   
-  // Plot each coordinate - similar to the Python version
+  // Plot each coordinate
   coordinates.forEach(coord => {
     // Adjust coordinates to account for padding and minimum values
     const adjustedX = coord.x - minX + padding;
@@ -65,30 +65,11 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
     );
   });
   
-  // // Draw lines between points (optional - remove if you want just points)
-  // if (coordinates.length > 1) {
-  //   ctx.strokeStyle = 'black';
-  //   ctx.lineWidth = 1;
-  //   ctx.beginPath();
-    
-  //   // Adjust first coordinate
-  //   const firstX = coordinates[0].x - minX + padding;
-  //   const firstY = coordinates[0].y - minY + padding;
-  //   ctx.moveTo(firstX, firstY);
-    
-  //   // Connect remaining points
-  //   for (let i = 1; i < coordinates.length; i++) {
-  //     const adjustedX = coordinates[i].x - minX + padding;
-  //     const adjustedY = coordinates[i].y - minY + padding;
-  //     ctx.lineTo(adjustedX, adjustedY);
-  //   }
-    
-  //   ctx.stroke();
-  //}
-
   // Return both the canvas and the BMP data
   return {
     canvas,
+    width,
+    height,
     bmpBlob: canvasToBMP(canvas),
     previewUrl: canvas.toDataURL('image/png')
   };
@@ -393,7 +374,7 @@ const updateCanvasPreview = () => {
       }
     }
     
-    // Use the Python-style coordinate plotting function
+    // Generate preview with dynamic dimensions
     const padding = 20; // Padding around the edges
     const pointSize = 3; // Size of each point
     
@@ -401,7 +382,10 @@ const updateCanvasPreview = () => {
     if (result) {
       setCanvasPreview(result.previewUrl);
       setBmpData(result.bmpBlob);
-      log('Canvas preview updated successfully with exact coordinates');
+      // Update the dimensions based on the actual generated image
+      setImageWidth(result.width);
+      setImageHeight(result.height);
+      log(`Canvas preview updated successfully - dimensions: ${result.width}x${result.height}`);
     } else {
       log('Failed to create canvas preview');
     }
@@ -410,109 +394,6 @@ const updateCanvasPreview = () => {
     console.error("Preview update error:", err);
   }
 };
-
-  // No need for the coordinates effect anymore since we're updating 
-  // the preview directly in the coordinate state setter
-
-  // Debug button to add fake coordinates for testing
-  const addTestCoordinates = () => {
-    // Clear existing coordinates
-    setCoordinates([]);
-    
-    const testType = window.prompt("Select test pattern (enter 1-4):\n1: Circle\n2: Spiral\n3: Square\n4: Raw device simulation", "1");
-    
-    const testCoords = [];
-    const centerX = imageWidth / 2;
-    const centerY = imageHeight / 2;
-    const radius = Math.min(imageWidth, imageHeight) / 4;
-    
-    if (testType === "1") {
-      // Create a simple circle
-      for (let i = 0; i < 50; i++) {
-        const angle = (i / 50) * Math.PI * 2;
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
-        testCoords.push({ x, y });
-      }
-      log(`Added ${testCoords.length} test coordinates in circle pattern`);
-    } 
-    else if (testType === "2") {
-      // Create a spiral
-      for (let i = 0; i < 100; i++) {
-        const angle = (i / 15) * Math.PI;
-        const spiralRadius = (i / 100) * radius;
-        const x = centerX + Math.cos(angle) * spiralRadius;
-        const y = centerY + Math.sin(angle) * spiralRadius;
-        testCoords.push({ x, y });
-      }
-      log(`Added ${testCoords.length} test coordinates in spiral pattern`);
-    }
-    else if (testType === "3") {
-      // Create a square
-      const side = radius * 1.5;
-      const halfSide = side / 2;
-      
-      // Top edge
-      for (let i = 0; i < 20; i++) {
-        testCoords.push({ 
-          x: centerX - halfSide + (i/19) * side, 
-          y: centerY - halfSide 
-        });
-      }
-      
-      // Right edge
-      for (let i = 0; i < 20; i++) {
-        testCoords.push({ 
-          x: centerX + halfSide,
-          y: centerY - halfSide + (i/19) * side
-        });
-      }
-      
-      // Bottom edge
-      for (let i = 0; i < 20; i++) {
-        testCoords.push({ 
-          x: centerX + halfSide - (i/19) * side,
-          y: centerY + halfSide
-        });
-      }
-      
-      // Left edge
-      for (let i = 0; i < 20; i++) {
-        testCoords.push({ 
-          x: centerX - halfSide,
-          y: centerY + halfSide - (i/19) * side
-        });
-      }
-      
-      log(`Added ${testCoords.length} test coordinates in square pattern`);
-    }
-    else if (testType === "4") {
-      // Simulate raw device output (much larger numbers)
-      // This simulates what might be coming from an actual device with different scaling
-      const scale = 10; // Simulated device scale factor
-      
-      for (let i = 0; i < 50; i++) {
-        const angle = (i / 50) * Math.PI * 2;
-        const x = (centerX + Math.cos(angle) * radius) * scale;
-        const y = (centerY + Math.sin(angle) * radius) * scale;
-        testCoords.push({ x, y });
-      }
-      log(`Added ${testCoords.length} raw device simulation coordinates`);
-    }
-    else {
-      // Default to circle
-      for (let i = 0; i < 50; i++) {
-        const angle = (i / 50) * Math.PI * 2;
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
-        testCoords.push({ x, y });
-      }
-      log(`Added ${testCoords.length} test coordinates (default circle)`);
-    }
-    
-    setCoordinates(testCoords);
-    setTimeout(() => updateCanvasPreview(), 100);
-  };
 
   // Render the UI
   return (
@@ -550,21 +431,6 @@ const updateCanvasPreview = () => {
         >
           Generate BMP
         </button>
-        
-        {/* Test button for debugging */}
-        <button 
-          onClick={addTestCoordinates}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: '#9C27B0',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Add Test Coordinates
-        </button>
       </div>
 
       {/* Image Size Controls */}
@@ -577,28 +443,6 @@ const updateCanvasPreview = () => {
       }}>
         <h3 style={{ marginTop: 0 }}>BMP Settings</h3>
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Width:</label>
-            <input 
-              type="number" 
-              value={imageWidth} 
-              onChange={(e) => setImageWidth(Number(e.target.value))}
-              min="100"
-              max="2000"
-              style={{ padding: '5px', width: '80px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Height:</label>
-            <input 
-              type="number" 
-              value={imageHeight} 
-              onChange={(e) => setImageHeight(Number(e.target.value))}
-              min="100"
-              max="2000"
-              style={{ padding: '5px', width: '80px' }}
-            />
-          </div>
           <button 
             onClick={updateCanvasPreview}
             disabled={coordinates.length === 0}
