@@ -36,10 +36,3 @@
     transform: rotate(360deg);
   }
 }
-
-.bt-button{
-  padding:4px;
-  border: none;
-  background-color: #D2D2F4;
-  color: #1e1e1e;
-}
