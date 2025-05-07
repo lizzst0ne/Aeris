@@ -69,11 +69,20 @@ function App() {
   return (
     <Router>
       <div className="app">
-        <header>
+        <header style={{alignContent: 'center'}}>
           <h1>Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
-
-
+              <div>
+                {user ? (
+                    <div className="user-info">
+                      <img src={user.photoURL} alt="Profile" className="profile-pic" />
+                      <span>Welcome, {user.displayName}</span>
+                      <button onClick={() => auth.signOut()}>Sign Out</button>
+                    </div>
+                  ) : (
+                    <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
+                )}
+              </div>
         </header>
 
         {/*  [ADDED] Define Routes */}
@@ -86,23 +95,6 @@ function App() {
             path="/"
             element={
               <main>
-                <div style={{display: 'flex'}}>
-                  <Link to="/bluetooth">
-                  <button style={{border: '1px solid #1e1e1e', backgroundColor: '#C5C5F1', borderRadius: '30px', width: '200px'}}>Go to Bluetooth Page</button>
-                  </Link>
-               
- 
-                  {user ? (
-                    <div className="user-info">
-                      <img src={user.photoURL} alt="Profile" className="profile-pic" />
-                      <span>Welcome, {user.displayName}</span>
-                      <button onClick={() => auth.signOut()}>Sign Out</button>
-                    </div>
-                  ) : (
-                    <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
-                  )}
-                </div>
-
                 {user ? (
                   <CalendarComponent />
                 ) : (
@@ -110,6 +102,21 @@ function App() {
                     <p>Please sign in with Google to access your calendar</p>
                   </div>
                 )}
+
+                <div style={{alignContent: 'center'}}>
+                  <Link to="/bluetooth">
+                    <button style={{
+                      border: '0.5px solid #1e1e1e', 
+                      backgroundColor: '#C5C5F1', 
+                      borderRadius: '30px', 
+                      width: '200px', 
+                      height: '75px',
+                      color: '#1e1e1e',
+                      fontSize: '20px'
+                    }}>Connect to Calendar</button>
+                  </Link>
+                </div>
+                  
               </main>
             }
           />
