@@ -129,6 +129,7 @@ const canvasToBMP = (canvas) => {
 
 
 const BluetoothPage = () => {
+  App();
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [currentData, setCurrentData] = useState(null);
