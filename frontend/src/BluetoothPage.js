@@ -51,6 +51,7 @@ const createBMPFile = (coordinates, padding = 20, pointSize = 3, logFunction) =>
   ctx.fillRect(0, 0, width, height);
   
   // Set point color to black
+  // Set point color to black
   ctx.fillStyle = 'black';
   
   // Plot each coordinate
@@ -242,11 +243,14 @@ const processData = (data) => {
         log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
         
         // Store the exact coordinates without any modifications
+        // Store the exact coordinates without any modifications
         setCoordinates(prev => {
+          const newCoords = [...prev, { x: rawX, y: rawY }];
           const newCoords = [...prev, { x: rawX, y: rawY }];
           
           // Log coordinate info periodically
           if (newCoords.length % 5 === 0) {
+            log(`Total coordinates: ${newCoords.length}, Latest: (${rawX},${rawY})`);
             log(`Total coordinates: ${newCoords.length}, Latest: (${rawX},${rawY})`);
           }
           
@@ -302,7 +306,7 @@ const processData = (data) => {
           handleDisconnection();
         }
       }
-    }, 1); // Poll every 10ms
+    }, 10); // Poll every 10ms
   };
 
   // Connect to the Adafruit device
