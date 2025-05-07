@@ -69,22 +69,34 @@ function App() {
   return (
     <Router>
       <div className="app">
+<<<<<<< HEAD
       <header>
           <h1 style="marginRight: 1rem;">Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
           <Link to="/bluetooth">
             <button style="padding: 5px 5px; background-color: #D2D2F4; color: #1e1e1e; border: none; border-radius: 4px;">Go to Bluetooth Page</button>
           </Link>
+=======
+        <header>
+          <h1>Aetas Calendar</h1>
+          {/*  [ADDED] Button to go to Bluetooth Page */}
+          <div>
+              <Link to="/bluetooth">
+                <button class="bt-button">Go to Bluetooth Page</button>
+              </Link>
 
-          {user ? (
-            <div className="user-info">
-              <img src={user.photoURL} alt="Profile" className="profile-pic" />
-              <span>Welcome, {user.displayName}</span>
-              <button onClick={() => auth.signOut()}>Sign Out</button>
-            </div>
-          ) : (
-            <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
-          )}
+              {user ? (
+                <div className="user-info">
+                  <img src={user.photoURL} alt="Profile" className="profile-pic" />
+                  <span>Welcome, {user.displayName}</span>
+                  <button onClick={() => auth.signOut()}>Sign Out</button>
+                </div>
+              ) : (
+                <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
+              )}
+          </div>
+>>>>>>> 081419404329f376d8bb9423be006a64f75011f5
+
         </header>
 
         {/*  [ADDED] Define Routes */}
