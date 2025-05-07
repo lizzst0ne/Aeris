@@ -211,10 +211,10 @@ void setup() {
   last_y = 0;
   filtered_x = 0;
   filtered_y = 0;
-  avg_x, last_avg_x, last_avg_x_2, last_avg_x_3, last_avg_x_4 = 0;
-  avg_y, last_avg_y, last_avg_y_2, last_avg_y_3, last_avg_y_4 = 0;
-  temp_x, temp_x_2, temp_x_3, temp_x_4 = 0;
-  temp_y, temp_y_2, temp_y_3, temp_y_4 = 0;
+  avg_x = last_avg_x = last_avg_x_2 = last_avg_x_3 = last_avg_x_4 = 0;
+  avg_y = last_avg_y = last_avg_y_2 = last_avg_y_3 = last_avg_y_4 = 0;
+  temp_x = temp_x_2 = temp_x_3 = temp_x_4 = 0;
+  temp_y = temp_y_2 = temp_y_3 = temp_y_4 = 0;
 
 
   /*---------------------------------------------------*/
