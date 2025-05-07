@@ -10,37 +10,9 @@ const formatCoordinateData = (coords) => {
   return `${coords.length} points collected`;
 };
 
-// This is a safer update to your createBMPFile function that should avoid breaking changes
-
-const createBMPFile = (coordinates, padding = 20, pointSize = 3, logFunction) => {
-  if (!coordinates || coordinates.length === 0) {
-    if (logFunction) logFunction("No coordinates provided for BMP generation");
-    return null;
-  }
-  
-  // Find the dimensions needed for the image based on coordinate ranges
-  let minX = Number.MAX_VALUE;
-  let maxX = Number.MIN_VALUE;
-  let minY = Number.MAX_VALUE;
-  let maxY = Number.MIN_VALUE;
-  
-  coordinates.forEach(coord => {
-    minX = Math.min(minX, coord.x);
-    maxX = Math.max(maxX, coord.x);
-    minY = Math.min(minY, coord.y);
-    maxY = Math.max(maxY, coord.y);
-  });
-  
-  // Calculate image dimensions with padding
-  const width = maxX - minX + 1 + (2 * padding);
-  const height = maxY - minY + 1 + (2 * padding);
-  
-  if (logFunction) {
-    logFunction(`Image dimensions based on coordinates: ${width}x${height}`);
-    logFunction(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
-  }
-  
-  // Create a blank canvas
+// BMP generation functions
+const createBMPFile = (coordinates, width = 800, height = 600, lineThickness = 2) => {
+  // Create a blank canvas first
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -50,30 +22,29 @@ const createBMPFile = (coordinates, padding = 20, pointSize = 3, logFunction) =>
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, width, height);
   
-  // Set point color to black
-  // Set point color to black
+  // Draw black lines/points for the coordinates
   ctx.fillStyle = 'black';
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = lineThickness;
   
-  // Plot each coordinate
-  coordinates.forEach(coord => {
-    // Adjust coordinates to account for padding and minimum values
-    const adjustedX = coord.x - minX + padding;
-    const adjustedY = coord.y - minY + padding;
+  // If we have coordinates, draw them
+  if (coordinates && coordinates.length > 0) {
+    // Start a path
+    ctx.beginPath();
+    ctx.moveTo(coordinates[0].x, coordinates[0].y);
     
-    // Draw the point as a small square
-    ctx.fillRect(
-      adjustedX - Math.floor(pointSize/2), 
-      adjustedY - Math.floor(pointSize/2), 
-      pointSize, 
-      pointSize
-    );
-  });
-  
-  // Return both the canvas and the BMP data along with dimensions
+    // Connect all points with lines
+    for (let i = 1; i < coordinates.length; i++) {
+      ctx.lineTo(coordinates[i].x, coordinates[i].y);
+    }
+    
+    // Stroke the path
+    ctx.stroke();
+  }
+
+  // Return both the canvas and the BMP data
   return {
     canvas,
-    width,
-    height,
     bmpBlob: canvasToBMP(canvas),
     previewUrl: canvas.toDataURL('image/png')
   };
@@ -242,16 +213,16 @@ const processData = (data) => {
         // Add debugging info for raw coordinates
         log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
         
-        // Store the exact coordinates without any modifications
-        // Store the exact coordinates without any modifications
+        // Use the exact coordinates without scaling
+        const x = rawX;
+        const y = rawY;
+        
         setCoordinates(prev => {
-          const newCoords = [...prev, { x: rawX, y: rawY }];
-          const newCoords = [...prev, { x: rawX, y: rawY }];
+          const newCoords = [...prev, { x, y }];
           
           // Log coordinate info periodically
           if (newCoords.length % 5 === 0) {
-            log(`Total coordinates: ${newCoords.length}, Latest: (${rawX},${rawY})`);
-            log(`Total coordinates: ${newCoords.length}, Latest: (${rawX},${rawY})`);
+            log(`Total coordinates: ${newCoords.length}, Latest: (${x},${y})`);
           }
           
           // If we've collected enough new points, update the preview
@@ -362,33 +333,28 @@ const processData = (data) => {
     }
   };
   
-// This is a safer update to your updateCanvasPreview method
-// to be placed inside your BluetoothPage component
-
-const updateCanvasPreview = () => {
-  if (coordinates.length === 0) {
-    log('No coordinates to update preview');
-    return;
-  }
-  
-  try {
-    log(`Updating preview with ${coordinates.length} points`);
-    
-    // Log some coordinate samples for debugging
-    if (coordinates.length > 0) {
-      log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
-      if (coordinates.length > 1) {
-        const lastIdx = coordinates.length - 1;
-        log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
-      }
+  // Update canvas preview with current coords
+  const updateCanvasPreview = () => {
+    if (coordinates.length === 0) {
+      log('No coordinates to update preview');
+      return;
     }
     
-    // Generate preview with dynamic dimensions
-    const padding = 20; // Padding around the edges
-    const pointSize = 3; // Size of each point
-    
-    const result = createBMPFile(coordinates, padding, pointSize, log);
-    if (result) {
+    try {
+      log(`Updating preview with ${coordinates.length} points`);
+      
+      // Log some coordinate samples for debugging
+      if (coordinates.length > 0) {
+        log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
+        if (coordinates.length > 1) {
+          const lastIdx = coordinates.length - 1;
+          log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
+        }
+      }
+      
+      // Use coordinates directly without scaling
+      // Generate BMP with the exact coordinates
+      const result = createBMPFile(coordinates, imageWidth, imageHeight);
       setCanvasPreview(result.previewUrl);
       setBmpData(result.bmpBlob);
       
@@ -460,6 +426,28 @@ const updateCanvasPreview = () => {
       }}>
         <h3 style={{ marginTop: 0 }}>BMP Settings</h3>
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Width:</label>
+            <input 
+              type="number" 
+              value={imageWidth} 
+              onChange={(e) => setImageWidth(Number(e.target.value))}
+              min="100"
+              max="2000"
+              style={{ padding: '5px', width: '80px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Height:</label>
+            <input 
+              type="number" 
+              value={imageHeight} 
+              onChange={(e) => setImageHeight(Number(e.target.value))}
+              min="100"
+              max="2000"
+              style={{ padding: '5px', width: '80px' }}
+            />
+          </div>
           <button 
             onClick={updateCanvasPreview}
             disabled={coordinates.length === 0}
