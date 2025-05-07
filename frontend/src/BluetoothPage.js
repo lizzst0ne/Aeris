@@ -378,109 +378,6 @@ const processData = (data) => {
     };
   }, [connectedDevice]);
 
-  // No need for the coordinates effect anymore since we're updating 
-  // the preview directly in the coordinate state setter
-
-  // Debug button to add fake coordinates for testing
-  const addTestCoordinates = () => {
-    // Clear existing coordinates
-    setCoordinates([]);
-    
-    const testType = window.prompt("Select test pattern (enter 1-4):\n1: Circle\n2: Spiral\n3: Square\n4: Raw device simulation", "1");
-    
-    const testCoords = [];
-    const centerX = imageWidth / 2;
-    const centerY = imageHeight / 2;
-    const radius = Math.min(imageWidth, imageHeight) / 4;
-    
-    if (testType === "1") {
-      // Create a simple circle
-      for (let i = 0; i < 50; i++) {
-        const angle = (i / 50) * Math.PI * 2;
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
-        testCoords.push({ x, y });
-      }
-      log(`Added ${testCoords.length} test coordinates in circle pattern`);
-    } 
-    else if (testType === "2") {
-      // Create a spiral
-      for (let i = 0; i < 100; i++) {
-        const angle = (i / 15) * Math.PI;
-        const spiralRadius = (i / 100) * radius;
-        const x = centerX + Math.cos(angle) * spiralRadius;
-        const y = centerY + Math.sin(angle) * spiralRadius;
-        testCoords.push({ x, y });
-      }
-      log(`Added ${testCoords.length} test coordinates in spiral pattern`);
-    }
-    else if (testType === "3") {
-      // Create a square
-      const side = radius * 1.5;
-      const halfSide = side / 2;
-      
-      // Top edge
-      for (let i = 0; i < 20; i++) {
-        testCoords.push({ 
-          x: centerX - halfSide + (i/19) * side, 
-          y: centerY - halfSide 
-        });
-      }
-      
-      // Right edge
-      for (let i = 0; i < 20; i++) {
-        testCoords.push({ 
-          x: centerX + halfSide,
-          y: centerY - halfSide + (i/19) * side
-        });
-      }
-      
-      // Bottom edge
-      for (let i = 0; i < 20; i++) {
-        testCoords.push({ 
-          x: centerX + halfSide - (i/19) * side,
-          y: centerY + halfSide
-        });
-      }
-      
-      // Left edge
-      for (let i = 0; i < 20; i++) {
-        testCoords.push({ 
-          x: centerX - halfSide,
-          y: centerY + halfSide - (i/19) * side
-        });
-      }
-      
-      log(`Added ${testCoords.length} test coordinates in square pattern`);
-    }
-    else if (testType === "4") {
-      // Simulate raw device output (much larger numbers)
-      // This simulates what might be coming from an actual device with different scaling
-      const scale = 10; // Simulated device scale factor
-      
-      for (let i = 0; i < 50; i++) {
-        const angle = (i / 50) * Math.PI * 2;
-        const x = (centerX + Math.cos(angle) * radius) * scale;
-        const y = (centerY + Math.sin(angle) * radius) * scale;
-        testCoords.push({ x, y });
-      }
-      log(`Added ${testCoords.length} raw device simulation coordinates`);
-    }
-    else {
-      // Default to circle
-      for (let i = 0; i < 50; i++) {
-        const angle = (i / 50) * Math.PI * 2;
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
-        testCoords.push({ x, y });
-      }
-      log(`Added ${testCoords.length} test coordinates (default circle)`);
-    }
-    
-    setCoordinates(testCoords);
-    setTimeout(() => updateCanvasPreview(), 100);
-  };
-
   // Render the UI
   return (
     <div style={{ padding: '20px' }}>
@@ -516,21 +413,6 @@ const processData = (data) => {
           }}
         >
           Generate BMP
-        </button>
-        
-        {/* Test button for debugging */}
-        <button 
-          onClick={addTestCoordinates}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: '#9C27B0',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Add Test Coordinates
         </button>
       </div>
 
