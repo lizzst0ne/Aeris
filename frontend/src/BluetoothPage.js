@@ -531,7 +531,7 @@ const updateCanvasPreview = () => {
   // Render the UI
   return (
     <div style={{ padding: '20px' }}>
-      <h2>Bluetooth Calendar</h2>
+      <h2>urmomBluetooth Calendar</h2>
       <p><strong>Status:</strong> {status}</p>
       
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
