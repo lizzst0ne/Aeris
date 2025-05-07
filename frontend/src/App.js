@@ -69,14 +69,6 @@ function App() {
   return (
     <Router>
       <div className="app">
-<<<<<<< HEAD
-      <header>
-          <h1 style="marginRight: 1rem;">Aetas Calendar</h1>
-          {/*  [ADDED] Button to go to Bluetooth Page */}
-          <Link to="/bluetooth">
-            <button style="padding: 5px 5px; background-color: #D2D2F4; color: #1e1e1e; border: none; border-radius: 4px;">Go to Bluetooth Page</button>
-          </Link>
-=======
         <header>
           <h1>Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
@@ -95,7 +87,6 @@ function App() {
                 <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
               )}
           </div>
->>>>>>> 081419404329f376d8bb9423be006a64f75011f5
 
         </header>
 
@@ -121,7 +112,7 @@ function App() {
           />
         </Routes>
       </div>
-     </Router>
+    </Router>
   );
 }
 

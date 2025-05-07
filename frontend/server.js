@@ -4,7 +4,6 @@ const app = express();
 
 // Serve static files from the React build
 app.use(express.static(path.join(__dirname, 'build')));
-app.use(express.static('src'));
 
 // Handle all routes by sending the React app
 app.get('*', (req, res) => {
