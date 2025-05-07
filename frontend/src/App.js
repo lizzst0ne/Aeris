@@ -69,7 +69,7 @@ function App() {
   return (
     <Router>
       <div className="app">
-        <header style={{alignContent: 'center'}}>
+        <header style={{textAlign: 'center'}}>
           <h1>Aetas Calendar</h1>
           {/*  [ADDED] Button to go to Bluetooth Page */}
               <div>
@@ -98,12 +98,12 @@ function App() {
                 {user ? (
                   <CalendarComponent />
                 ) : (
-                  <div className="login-prompt">
+                  <div className="login-prompt" style= {{textAlign: 'center'}}>
                     <p>Please sign in with Google to access your calendar</p>
                   </div>
                 )}
 
-                <div style={{alignContent: 'center'}}>
+                <div style={{margin: 'auto'}}>
                   <Link to="/bluetooth">
                     <button style={{
                       border: '0.5px solid #1e1e1e', 
