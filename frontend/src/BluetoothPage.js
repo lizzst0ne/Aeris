@@ -428,7 +428,7 @@ const processData = (data) => {
       
 
       <Route
-            path="/"
+            path="/bluetooth"
             element={
               <main>
 
