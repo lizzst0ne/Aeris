@@ -102,8 +102,8 @@ function App() {
                     <p>Please sign in with Google to access your calendar</p>
                   </div>
                 )}
-
-                <div style={{margin: 'auto'}}>
+                <div style={{height:'40%'}}></div>
+                <div style={{textAlign: 'center'}}>
                   <Link to="/bluetooth">
                     <button style={{
                       border: '0.5px solid #1e1e1e', 
