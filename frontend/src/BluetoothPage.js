@@ -129,7 +129,6 @@ const canvasToBMP = (canvas) => {
 
 
 const BluetoothPage = () => {
-  App();
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [currentData, setCurrentData] = useState(null);
@@ -416,8 +415,8 @@ const processData = (data) => {
           </div>
         )}
         <div style={{textAlign: 'center', marginTop: '40%'}}>
-          <Link to="/bluetooth">
-            <button style={{
+            <button onClick={connectToDevice} disabled={connectedDevice !== null} 
+              style={{
               border: '0.5px solid #1e1e1e', 
               backgroundColor: '#C5C5F1', 
               borderRadius: '30px', 
@@ -426,7 +425,6 @@ const processData = (data) => {
               color: '#1e1e1e',
               fontSize: '20px'
             }}>Connect to Calendar</button>
-          </Link>
         </div>
 
 
