@@ -95,7 +95,7 @@ function App() {
             element={
               <main>
 
-                <h1 style={{textAlign: 'center', marginTop:'20%'}}>Aetas Calendar</h1>
+                <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
 
                 {user ? (
                   <CalendarComponent />
@@ -104,7 +104,7 @@ function App() {
                     <p>Please sign in with Google to access your calendar</p>
                   </div>
                 )}
-                <div style={{textAlign: 'center', marginTop: '50%'}}>
+                <div style={{textAlign: 'center', marginTop: '40%'}}>
                   <Link to="/bluetooth">
                     <button style={{
                       border: '0.5px solid #1e1e1e', 
