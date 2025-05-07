@@ -26,7 +26,7 @@ const GoogleLoginButton = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div style={{textAlign: 'left'}}>
+    <div style={{textAlign: 'center'}}>
       <button
         onClick={handleGoogleLogin}
         disabled={isLoading}
