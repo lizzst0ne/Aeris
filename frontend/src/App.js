@@ -77,15 +77,14 @@ function App() {
                       <button 
                         onClick={() => auth.signOut()} 
                         style={{
-                          border: '0.5px solid #1e1e1e', 
+                          border: '1px solid #1e1e1e', 
                           backgroundColor: '#C5C5F1', 
                           borderRadius: '30px', 
-                          width: '200px', 
-                          height: '75px',
-                          color: '#1e1e1e',
-                          fontSize: '20px'
+                          width: '75px', 
+                          color: '#1e1e1e', 
+                          height: '30px'
                         }}>Sign Out</button>
-                      <img src={user.photoURL} alt="Profile" className="profile-pic" style={{borderRadius: '50%', height: '75px'}}/>
+                      <img src={user.photoURL} alt="Profile" className="profile-pic" style={{paddingRight:'5px', borderRadius: '50%', height: '30px'}}/>
                       {/* <span>Welcome, {user.displayName}</span> */}
                       
                     </div>
