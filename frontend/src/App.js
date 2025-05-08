@@ -83,9 +83,9 @@ function App() {
                           width: '75px', 
                           color: '#1e1e1e', 
                           height: '30px',
-                          marginTop:'0'
+                          verticalAlign: 'middle'
                         }}>Sign Out</button>
-                      <img src={user.photoURL} alt="Profile" className="profile-pic" style={{marginTop: '10px', marginLeft: '10px', borderRadius: '50%', height: '30px'}}/>
+                      <img src={user.photoURL} alt="Profile" className="profile-pic" style={{marginLeft: '10px', borderRadius: '50%', height: '30px'}}/>
                       {/* <span>Welcome, {user.displayName}</span> */}
                     </div>
                   ) : (
