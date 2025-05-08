@@ -83,11 +83,11 @@ function App() {
                           width: '75px', 
                           color: '#1e1e1e', 
                           height: '30px',
-                          marginTop:'0'
+                          marginTop:'0',
+                          transform: translate(0, -10)
                         }}>Sign Out</button>
-                      <img src={user.photoURL} alt="Profile" className="profile-pic" style={{marginLeft:'4px', borderRadius: '50%', height: '30px'}}/>
+                      <img src={user.photoURL} alt="Profile" className="profile-pic" style={{marginLeft:'10px', borderRadius: '50%', height: '30px'}}/>
                       {/* <span>Welcome, {user.displayName}</span> */}
-                      
                     </div>
                   ) : (
                     <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
