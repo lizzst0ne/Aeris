@@ -66,14 +66,14 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
     const halfSize = Math.floor(pointSize / 2);
     
     // Method 1: Draw as filled rectangle
-    ctx.fillRect(x - halfSize, y - halfSize, pointSize, pointSize);
+    //ctx.fillRect(x - halfSize, y - halfSize, pointSize, pointSize);
     
     // Alternative methods (commented out):
     
-    // Method 2: Draw as circle
-    // ctx.beginPath();
-    // ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
-    // ctx.fill();
+    //Method 2: Draw as circle
+    ctx.beginPath();
+    ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
+    ctx.fill();
     
     // Method 3: Draw as single pixel (for very precise rendering)
     // ctx.fillRect(x, y, 1, 1);
