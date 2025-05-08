@@ -510,10 +510,6 @@ const updateCanvasPreview = () => {
       Update Preview
     </button>
   </div>
-  <p style={{ marginTop: '10px', fontSize: '0.9em', color: '#666' }}>
-    The BMP dimensions are automatically calculated based on the coordinate range. 
-    Each coordinate is drawn as a {pointSize}×{pointSize} pixel point.
-  </p>
 </div>
 
       {/* Data Display Section */}
@@ -537,7 +533,7 @@ const updateCanvasPreview = () => {
                 <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
               </div>
 
-              {/* Message History Panel */}
+              {/* Message History Panel
               <div style={{
                 flex: '1 1 300px',
                 padding: '15px',
@@ -556,9 +552,9 @@ const updateCanvasPreview = () => {
                   )}
                 </ul>
               </div>
-            </div>
+            </div> */}
 
-            {/* Debug Console */}
+            {/* Debug Console
             <div style={{ marginTop: '20px' }}>
               <h3>Debug Console</h3>
               <pre style={{ 
@@ -573,7 +569,7 @@ const updateCanvasPreview = () => {
                 {debugLog.length > 0 ? 
                   debugLog.map((line, i) => <div key={i}>{line}</div>) : 
                   "No debug logs yet"}
-              </pre>
+              </pre> */}
             </div>
           </div>
         </div>
@@ -611,31 +607,6 @@ const updateCanvasPreview = () => {
                 "Preview loading..." : 
                 "No coordinates available to display preview"}
             </div>
-          )}
-          <p style={{ fontSize: '0.9em', color: '#666', marginTop: '10px' }}>
-            {canvasPreview ? 
-              `Preview of the BMP image (${imageWidth}×${imageHeight} pixels).
-              ${bmpData ? `The BMP data is ${Math.round(bmpData.size / 1024)} KB.` : ''}` :
-              "Generate a preview by adding coordinates and clicking 'Update Preview'"
-            }
-          </p>
-          
-          {/* Add button to use with Google Vision - you'd integrate this with your API code */}
-          {bmpData && (
-            <button
-              onClick={() => log('BMP data ready for Vision API')}
-              style={{ 
-                padding: '8px 16px',
-                backgroundColor: '#FF5722',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                marginTop: '10px',
-                cursor: 'pointer'
-              }}
-            >
-              Send to Vision API
-            </button>
           )}
         </div>
       </div>
