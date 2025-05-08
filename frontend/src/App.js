@@ -73,10 +73,11 @@ function App() {
           {/*  [ADDED] Button to go to Bluetooth Page */}
               <div style={{marginTop:'10px', marginRight: '10px', textAlign: 'right'}}>
                 {user ? (
-                    <div className="user-info">
-                      <img src={user.photoURL} alt="Profile" className="profile-pic" />
-                      <span>Welcome, {user.displayName}</span>
+                    <div className="user-info" >
                       <button onClick={() => auth.signOut()}>Sign Out</button>
+                      <img src={user.photoURL} alt="Profile" className="profile-pic" style={{borderRadius: '50%'}}/>
+                      {/* <span>Welcome, {user.displayName}</span> */}
+                      
                     </div>
                   ) : (
                     <GoogleLoginButton onLoginSuccess={handleLoginSuccess} />
