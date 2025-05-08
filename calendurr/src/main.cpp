@@ -589,7 +589,8 @@ void sendData(){
     char endMsg[20];
     sprintf(endMsg, "END-%lu", messageCounter++);
     sendMessage(endMsg);
-    delay(5); // Reduced delay
+      // Add much longer delay before START
+    delay(3000); // 1 second delay
     
     // Send "START" marker for next data set
     char startMsg[20];
