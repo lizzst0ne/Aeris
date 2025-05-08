@@ -143,7 +143,7 @@ function App() {
   const [imageWidth, setImageWidth] = useState(800);
   const [imageHeight, setImageHeight] = useState(600);
   const [bmpData, setBmpData] = useState(null);
-  const [showBluetoothPanel, setShowBluetoothPanel] = useState(false);
+  const [showBluetoothPanel, setShowBluetoothPanel] = useState(true);
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
@@ -403,7 +403,7 @@ function App() {
     }
   };
 
-  // Toggle showing/hiding Bluetooth panel
+  // We'll keep this function but won't use it since the panel will always be visible
   const toggleBluetoothPanel = () => {
     setShowBluetoothPanel(!showBluetoothPanel);
   };
@@ -465,28 +465,28 @@ function App() {
               <CalendarComponent />
             </div>
             
-            {/* Bluetooth Connect Button */}
+            {/* Bluetooth Connect Button - Now just for connecting */}
             <div style={{textAlign: 'center', marginTop: '20px', marginBottom: '20px'}}>
               <button 
-                onClick={showBluetoothPanel ? toggleBluetoothPanel : connectToDevice}
+                onClick={connectToDevice}
+                disabled={connectedDevice !== null}
                 style={{
                   border: '0.5px solid #1e1e1e', 
-                  backgroundColor: showBluetoothPanel ? '#e0e0ff' : '#C5C5F1', 
+                  backgroundColor: connectedDevice ? '#e0e0ff' : '#C5C5F1', 
                   borderRadius: '30px', 
                   width: '200px', 
                   height: '75px',
                   color: '#1e1e1e',
                   fontSize: '20px',
-                  cursor: 'pointer'
+                  cursor: connectedDevice ? 'default' : 'pointer'
                 }}
               >
-                {showBluetoothPanel ? 'Hide Bluetooth Panel' : connectedDevice ? 'Bluetooth Connected' : 'Connect to Calendar'}
+                {connectedDevice ? 'Bluetooth Connected' : 'Connect to Calendar'}
               </button>
             </div>
             
-            {/* Bluetooth Panel */}
-            {showBluetoothPanel && (
-              <div style={{
+            {/* Bluetooth Panel - Always visible */}
+            <div style={{
                 backgroundColor: '#f9f9f9',
                 borderRadius: '10px',
                 padding: '20px',
@@ -701,7 +701,6 @@ function App() {
                   </div>
                 </div>
               </div>
-            )}
           </>
         )}
       </main>
