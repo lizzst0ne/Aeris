@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Google Vision API key - replace with your actual API key
+const GOOGLE_VISION_API_KEY = 'AIzaSyDTKpqKc0TMHZlxtRhBW6SvMNGqTCU1_ss';
+
 // Match UUIDs with the Adafruit device
 const CALENDAR_SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
 const CALENDAR_DATA_CHAR_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
@@ -161,6 +164,12 @@ const BluetoothPage = () => {
   const [imageWidth, setImageWidth] = useState(800);
   const [imageHeight, setImageHeight] = useState(600);
   const [bmpData, setBmpData] = useState(null);
+  // New states for Vision API
+  const [apiKey, setApiKey] = useState('');
+  const [visionApiStatus, setVisionApiStatus] = useState('Not sent');
+  const [visionApiResults, setVisionApiResults] = useState(null);
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [isSubmittingToVision, setIsSubmittingToVision] = useState(false);
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
@@ -343,23 +352,6 @@ const processData = (data) => {
       setStatus(`Connection failed: ${err.message}`);
     }
   };
-
-
-// /// Generate BMP file
-// const handleGenerateBMP = () => {
-//   if (coordinates.length === 0) {
-//     log('No coordinates available to generate BMP');
-//     return;
-//   }
-  
-//   try {
-//     log(`Generating BMP with ${coordinates.length} points using auto-sizing...`);
-//     updateCanvasPreview(); // Use our shared function
-//     log(`BMP generated and ready for Vision API: ${bmpData ? bmpData.size : 0} bytes`);
-//   } catch (err) {
-//     log(`Error generating BMP: ${err.message}`);
-//   }
-// };
   
 // Add point size to state
 const [pointSize, setPointSize] = useState(3);
@@ -412,6 +404,101 @@ const updateCanvasPreview = () => {
   }
 };
 
+// Function to convert blob to base64
+const blobToBase64 = (blob) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      // Get the base64 part after the comma: data:image/bmp;base64,BASE64_DATA
+      const base64String = reader.result.split(',')[1];
+      resolve(base64String);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+// Send image to Google Vision API for text recognition
+const sendToVisionAPI = async () => {
+  if (!bmpData) {
+    log('No BMP data available to send to Vision API');
+    return;
+  }
+
+  if (!apiKey) {
+    setShowApiKeyInput(true);
+    log('API key required to use Vision API');
+    return;
+  }
+
+  try {
+    setVisionApiStatus('Sending to Vision API...');
+    setIsSubmittingToVision(true);
+    log('Preparing image data for Vision API...');
+
+    // Convert BMP blob to base64
+    const base64Image = await blobToBase64(bmpData);
+    log(`Image converted to base64 (${Math.floor(base64Image.length / 1024)}KB)`);
+
+    // Prepare the request
+    const visionRequest = {
+      requests: [
+        {
+          image: {
+            content: base64Image
+          },
+          features: [
+            {
+              type: 'TEXT_DETECTION',
+              maxResults: 10
+            },
+            {
+              type: 'DOCUMENT_TEXT_DETECTION',
+              maxResults: 10
+            }
+          ]
+        }
+      ]
+    };
+
+    log('Sending request to Vision API...');
+    const response = await fetch(
+      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(visionRequest)
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    log('Response received from Vision API');
+
+    // Process and display results
+    setVisionApiResults(data);
+    setVisionApiStatus('Results received');
+    
+    // Extract the detected text for easy display
+    const detectedText = data.responses[0]?.fullTextAnnotation?.text || 
+                         'No text detected';
+    
+    log(`Detected text: ${detectedText.substring(0, 100)}${detectedText.length > 100 ? '...' : ''}`);
+    
+  } catch (err) {
+    log(`Vision API Error: ${err.message}`);
+    setVisionApiStatus(`Error: ${err.message}`);
+  } finally {
+    setIsSubmittingToVision(false);
+  }
+};
+
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
@@ -425,13 +512,62 @@ const updateCanvasPreview = () => {
     };
   }, [connectedDevice]);
 
+  // Display formatted Vision API results
+  const renderVisionResults = () => {
+    if (!visionApiResults) return null;
+    
+    const textAnnotations = visionApiResults.responses[0]?.textAnnotations || [];
+    const fullText = visionApiResults.responses[0]?.fullTextAnnotation?.text;
+    
+    return (
+      <div style={{ marginTop: '20px' }}>
+        <h3>Vision API Results</h3>
+        
+        {fullText ? (
+          <div style={{ 
+            border: '1px solid #ddd',
+            padding: '10px',
+            backgroundColor: '#fff',
+            borderRadius: '4px',
+            marginBottom: '10px'
+          }}>
+            <h4>Detected Text:</h4>
+            <pre style={{ 
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxHeight: '200px',
+              overflowY: 'auto'
+            }}>{fullText}</pre>
+          </div>
+        ) : (
+          <p>No text detected in the image</p>
+        )}
+        
+        {textAnnotations.length > 0 && (
+          <div>
+            <h4>Text Elements ({textAnnotations.length - 1}):</h4>
+            <ul style={{ 
+              maxHeight: '200px', 
+              overflowY: 'auto',
+              padding: '0 0 0 20px'
+            }}>
+              {textAnnotations.slice(1).map((item, idx) => (
+                <li key={idx}>"{item.description}" (Confidence: {(item.score * 100 || 0).toFixed(2)}%)</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Render the UI
   return (
     <div style={{ padding: '20px' }}>
-      <h2>Bluetooth Calendar</h2>
+      <h2>Bluetooth Calendar with Vision API</h2>
       <p><strong>Status:</strong> {status}</p>
       
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
         <button 
           onClick={connectToDevice}
           disabled={connectedDevice !== null}
@@ -447,67 +583,123 @@ const updateCanvasPreview = () => {
           Connect to Calendar Device
         </button>
         
-        {/* <button 
-          onClick={handleGenerateBMP}
-          disabled={coordinates.length === 0}
+        <button 
+          onClick={() => setShowApiKeyInput(!showApiKeyInput)}
           style={{ 
             padding: '8px 16px',
-            backgroundColor: coordinates.length === 0 ? '#cccccc' : '#2196F3',
+            backgroundColor: '#FF9800',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: coordinates.length === 0 ? 'default' : 'pointer'
+            cursor: 'pointer'
           }}
         >
-          Generate BMP
-        </button> */}
+          {showApiKeyInput ? 'Hide API Key Input' : 'Set Vision API Key'}
+        </button>
+        
+        <button 
+          onClick={sendToVisionAPI}
+          disabled={!bmpData || !apiKey || isSubmittingToVision}
+          style={{ 
+            padding: '8px 16px',
+            backgroundColor: (!bmpData || !apiKey || isSubmittingToVision) ? '#cccccc' : '#2196F3',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: (!bmpData || !apiKey || isSubmittingToVision) ? 'default' : 'pointer'
+          }}
+        >
+          {isSubmittingToVision ? 'Sending to Vision API...' : 'Send to Vision API'}
+        </button>
       </div>
+      
+      {/* API Key Input Section */}
+      {showApiKeyInput && (
+        <div style={{ 
+          marginBottom: '20px',
+          padding: '15px',
+          backgroundColor: '#f0f0f0',
+          borderRadius: '8px',
+          maxWidth: '500px'
+        }}>
+          <h3 style={{ marginTop: 0 }}>Google Vision API Key</h3>
+          <input 
+            type="text" 
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Enter your Google Vision API Key"
+            style={{ 
+              width: '100%',
+              padding: '8px',
+              marginBottom: '10px',
+              borderRadius: '4px',
+              border: '1px solid #ddd'
+            }}
+          />
+          <p style={{ fontSize: '0.8rem', color: '#555' }}>
+            Your API key is stored only in this browser session and is not saved permanently.
+          </p>
+        </div>
+      )}
 
-{/* Image Settings Display with Point Size Control */}
-<div style={{ 
-  marginBottom: '20px',
-  padding: '15px',
-  backgroundColor: '#f0f0f0',
-  borderRadius: '8px',
-  maxWidth: '500px'
-}}>
-  <h3 style={{ marginTop: 0 }}>BMP Settings (Auto-sized)</h3>
-  <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-    <div>
-      <label style={{ display: 'block', marginBottom: '5px' }}>Current Width:</label>
-      <span style={{ padding: '5px', fontWeight: 'bold' }}>{imageWidth}px</span>
-    </div>
-    <div>
-      <label style={{ display: 'block', marginBottom: '5px' }}>Current Height:</label>
-      <span style={{ padding: '5px', fontWeight: 'bold' }}>{imageHeight}px</span>
-    </div>
-    <div>
-      <label style={{ display: 'block', marginBottom: '5px' }}>Point Size:</label>
-      <input 
-        type="number" 
-        value={pointSize} 
-        onChange={(e) => setPointSize(Math.max(1, Number(e.target.value)))}
-        min="1"
-        max="10"
-        style={{ padding: '5px', width: '60px' }}
-      />
-    </div>
-    <button 
-      onClick={updateCanvasPreview}
-      disabled={coordinates.length === 0}
-      style={{ 
-        padding: '8px 16px',
-        backgroundColor: '#607D8B',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: coordinates.length === 0 ? 'default' : 'pointer'
-      }}
-    >
-      Update Preview
-    </button>
-  </div>
-</div>
+      {/* Vision API Status */}
+      {apiKey && (
+        <div style={{ 
+          marginBottom: '20px',
+          padding: '10px',
+          backgroundColor: visionApiStatus.includes('Error') ? '#ffebee' : '#e3f2fd',
+          borderRadius: '4px',
+          maxWidth: '500px'
+        }}>
+          <strong>Vision API Status:</strong> {visionApiStatus}
+        </div>
+      )}
+
+      {/* Image Settings Display with Point Size Control */}
+      <div style={{ 
+        marginBottom: '20px',
+        padding: '15px',
+        backgroundColor: '#f0f0f0',
+        borderRadius: '8px',
+        maxWidth: '500px'
+      }}>
+        <h3 style={{ marginTop: 0 }}>BMP Settings (Auto-sized)</h3>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Current Width:</label>
+            <span style={{ padding: '5px', fontWeight: 'bold' }}>{imageWidth}px</span>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Current Height:</label>
+            <span style={{ padding: '5px', fontWeight: 'bold' }}>{imageHeight}px</span>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Point Size:</label>
+            <input 
+              type="number" 
+              value={pointSize} 
+              onChange={(e) => setPointSize(Math.max(1, Number(e.target.value)))}
+              min="1"
+              max="10"
+              style={{ padding: '5px', width: '60px' }}
+            />
+          </div>
+          <button 
+            onClick={updateCanvasPreview}
+            disabled={coordinates.length === 0}
+            style={{ 
+              padding: '8px 16px',
+              backgroundColor: '#607D8B',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: coordinates.length === 0 ? 'default' : 'pointer'
+            }}
+          >
+            Update Preview
+          </button>
+        </div>
+      </div>
 
       {/* Data Display Section */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
@@ -529,44 +721,6 @@ const updateCanvasPreview = () => {
                 <p><strong>Session State:</strong> {sessionStateRef.current}</p>
                 <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
               </div>
-
-              {/* Message History Panel
-              <div style={{
-                flex: '1 1 300px',
-                padding: '15px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '8px',
-                marginBottom: '15px'
-              }}>
-                <h3>Message History</h3>
-                <ul style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 0 20px' }}>
-                  {messageHistory.length > 0 ? (
-                    messageHistory.map((entry, idx) => (
-                      <li key={idx} style={{ marginBottom: '5px' }}>{entry}</li>
-                    ))
-                  ) : (
-                    <li>No messages received</li>
-                  )}
-                </ul>
-              </div>
-            </div> */}
-
-            {/* Debug Console
-            <div style={{ marginTop: '20px' }}>
-              <h3>Debug Console</h3>
-              <pre style={{ 
-                background: '#333', 
-                color: '#f3f3f3',
-                padding: '10px', 
-                height: '200px', 
-                overflowY: 'scroll',
-                fontFamily: 'monospace',
-                borderRadius: '4px'
-              }}>
-                {debugLog.length > 0 ? 
-                  debugLog.map((line, i) => <div key={i}>{line}</div>) : 
-                  "No debug logs yet"}
-              </pre> */}
             </div>
           </div>
         </div>
@@ -605,7 +759,28 @@ const updateCanvasPreview = () => {
                 "No coordinates available to display preview"}
             </div>
           )}
+          
+          {/* Vision API Results */}
+          {renderVisionResults()}
         </div>
+      </div>
+      
+      {/* Debug Log Section */}
+      <div style={{ marginTop: '30px' }}>
+        <h3>Debug Console</h3>
+        <pre style={{ 
+          background: '#333', 
+          color: '#f3f3f3',
+          padding: '10px', 
+          height: '200px', 
+          overflowY: 'scroll',
+          fontFamily: 'monospace',
+          borderRadius: '4px'
+        }}>
+          {debugLog.length > 0 ? 
+            debugLog.map((line, i) => <div key={i}>{line}</div>) : 
+            "No debug logs yet"}
+        </pre>
       </div>
     </div>
   );
