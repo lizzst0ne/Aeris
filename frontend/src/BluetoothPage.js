@@ -59,16 +59,17 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
   // Set to black for drawing points
   ctx.fillStyle = 'black';
   
-  // Draw each coordinate as a point (small circle)
+  // Draw each coordinate as a point (small rectangle)
   coordinates.forEach(coord => {
     // Adjust coordinates relative to minX, minY + padding
     const x = coord.x - minX + padding;
     const y = coord.y - minY + padding;
     
-    // Draw as circle
-    ctx.beginPath();
-    ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
-    ctx.fill();
+      //Draw as circle
+      ctx.beginPath();
+      ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+
   });
 
   // Return both the canvas and the BMP data
@@ -163,25 +164,17 @@ const BluetoothPage = () => {
   const [imageWidth, setImageWidth] = useState(800);
   const [imageHeight, setImageHeight] = useState(600);
   const [bmpData, setBmpData] = useState(null);
-  const [pointSize, setPointSize] = useState(3);
-  const [receivedPoints, setReceivedPoints] = useState(0);
-  const [receivedTime, setReceivedTime] = useState(0);
-  const [pointsRate, setPointsRate] = useState(0);
-  
-  // New states for Vision API
-  const [apiKey, setApiKey] = useState(GOOGLE_VISION_API_KEY || '');
+  // States for Vision API
   const [visionApiStatus, setVisionApiStatus] = useState('Not sent');
   const [visionApiResults, setVisionApiResults] = useState(null);
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [isSubmittingToVision, setIsSubmittingToVision] = useState(false);
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
-  const characteristicRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
   const lastValueRef = useRef('');
   const sessionStateRef = useRef('idle'); // idle, collecting, completed
-  const startTimeRef = useRef(0);
-  const lastRateUpdateRef = useRef(0);
+  const canvasRef = useRef(null);
 
   // Helper for adding to debug log
   const log = (msg) => {
@@ -195,38 +188,15 @@ const BluetoothPage = () => {
   const handleDisconnection = () => {
     setStatus('Disconnected');
     setConnectedDevice(null);
-    characteristicRef.current = null;
+    dataCharRef.current = null;
     setCurrentData(null);
     sessionStateRef.current = 'idle';
     
-    // Remove notification listener if it exists
-    if (characteristicRef.current) {
-      try {
-        characteristicRef.current.removeEventListener('characteristicvaluechanged', handleNotification);
-      } catch (err) {
-        log(`Error removing notification listener: ${err.message}`);
-      }
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
     }
     
     log('Device disconnected');
-  };
-
-  // Function to handle incoming notifications
-  const handleNotification = (event) => {
-    const value = event.target.value;
-    handleDataReceived(value);
-    
-    // Calculate and display points per second every 2 seconds
-    const now = Date.now();
-    if (now - lastRateUpdateRef.current > 2000) {
-      const elapsedTime = (now - startTimeRef.current) / 1000; // convert to seconds
-      if (elapsedTime > 0) {
-        const rate = receivedPoints / elapsedTime;
-        setPointsRate(rate.toFixed(1));
-        setReceivedTime(elapsedTime.toFixed(1));
-      }
-      lastRateUpdateRef.current = now;
-    }
   };
 
 // Process received data based on message format
@@ -236,8 +206,6 @@ const processData = (data) => {
     sessionStateRef.current = 'collecting';
     log(`New data collection session started: ${data}`);
     setCoordinates([]);
-    startTimeRef.current = Date.now();
-    setReceivedPoints(0);
     return;
   }
   
@@ -245,8 +213,8 @@ const processData = (data) => {
     sessionStateRef.current = 'waiting_for_date';
     log(`Data collection stopped: ${data}`);
     log(`Total coordinates received: ${coordinates.length}`);
-    // Generate preview immediately when we stop collecting
-    updateCanvasPreview();
+    // Force a preview update when we stop collecting
+    setTimeout(() => updateCanvasPreview(), 100);
     return;
   }
   
@@ -263,21 +231,21 @@ const processData = (data) => {
     sessionStateRef.current = 'completed';
     log(`Session completed: ${data}`);
     log(`Final coordinates count: ${coordinates.length}`);
-    // Update the preview one more time at the end
-    updateCanvasPreview();
+    // Generate preview when session is completed
+    setTimeout(() => updateCanvasPreview(), 100);
     return;
   }
   
-  // Process coordinate data (format: "C:[x],[y]")
+  // Process coordinate data (format: "[counter]:[x],[y]")
   if (sessionStateRef.current === 'collecting' && data.includes(':')) {
-    // Check if this is a coordinate message (C: prefix)
-    if (data.startsWith('C:')) {
-      const coordData = data.substring(2); // Remove "C:" prefix
+    const parts = data.split(':');
+    if (parts.length === 2) {
+      const coordData = parts[1];
       const [rawX, rawY] = coordData.split(',').map(Number);
       
       if (!isNaN(rawX) && !isNaN(rawY)) {
-        // Increment received points counter
-        setReceivedPoints(prev => prev + 1);
+        // Add debugging info for raw coordinates
+        log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
         
         // Use the exact coordinates without scaling
         const x = rawX;
@@ -287,20 +255,19 @@ const processData = (data) => {
           const newCoords = [...prev, { x, y }];
           
           // Log coordinate info periodically
-          if (newCoords.length % 20 === 0) {
+          if (newCoords.length % 5 === 0) {
             log(`Total coordinates: ${newCoords.length}, Latest: (${x},${y})`);
           }
           
+          // If we've collected enough new points, update the preview
+          if (newCoords.length % 10 === 0 || newCoords.length === 1) {
+            setTimeout(() => updateCanvasPreview(), 50);
+          }
           return newCoords;
         });
       } else {
         log(`Invalid coordinate data: ${coordData}`);
       }
-    }
-    // Other message types with ":" that aren't coordinates or known commands
-    else if (!data.startsWith('START-') && !data.startsWith('STOP-') && 
-             !data.startsWith('DATE-') && !data.startsWith('END-')) {
-      log(`Unknown data format received: ${data}`);
     }
   }
 };
@@ -321,14 +288,30 @@ const processData = (data) => {
         // Process the message based on its format
         processData(trimmed);
         
-        // Only log non-coordinate messages to avoid flooding the console
-        if (!trimmed.startsWith('C:')) {
-          log(`Data received: ${trimmed}`);
-        }
+        log(`Data received: ${trimmed}`);
       }
     } catch (err) {
       log(`Error decoding value: ${err.message}`);
     }
+  };
+
+  // Set up polling to regularly read the characteristic value
+  const setupPolling = async (characteristic) => {
+    dataCharRef.current = characteristic;
+    log('Polling started (10ms interval)');
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const value = await characteristic.readValue();
+        handleDataReceived(value);
+      } catch (err) {
+        log(`Polling error: ${err.message}`);
+        if (err.message.includes('disconnected')) {
+          clearInterval(pollingIntervalRef.current);
+          handleDisconnection();
+        }
+      }
+    }, 0.1); // Poll every 10ms
   };
 
   // Connect to the Adafruit device
@@ -355,194 +338,164 @@ const processData = (data) => {
       // Get the data characteristic
       const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
       log('Found data characteristic');
-      
-      // Save the characteristic reference
-      characteristicRef.current = characteristic;
 
-      // Try to use notifications (will work on Android)
-      try {
-        log('Trying to start notifications...');
-        await characteristic.startNotifications();
-        characteristic.addEventListener('characteristicvaluechanged', handleNotification);
-        log('Notifications started successfully! You should see better performance.');
-        setStatus('Connected - Using Notifications');
-      } catch (error) {
-        // If notifications fail, provide feedback but continue
-        log(`Notifications not supported: ${error.message}`);
-        log('Falling back to polling approach...');
-        
-        // Note: We don't implement polling here because notifications should work on Android
-        // In a real app, you'd add a polling fallback here
-        setStatus('Connected - Notifications Failed');
-      }
+      // Set up polling for data
+      await setupPolling(characteristic);
+      setStatus('Connected - Polling for Data');
 
       // Listen for disconnection events
       device.addEventListener('gattserverdisconnected', handleDisconnection);
-      
-      // Initialize the time tracking for points per second calculation
-      startTimeRef.current = Date.now();
-      lastRateUpdateRef.current = Date.now();
-      setReceivedPoints(0);
-      
     } catch (err) {
       log(`Connection failed: ${err.message}`);
       setStatus(`Connection failed: ${err.message}`);
     }
   };
   
-  // Update canvas preview with point drawing
-  const updateCanvasPreview = () => {
-    if (coordinates.length === 0) {
-      log('No coordinates to update preview');
-      return;
+// Add point size to state
+const [pointSize, setPointSize] = useState(3);
+
+// Update canvas preview with point drawing
+const updateCanvasPreview = () => {
+  if (coordinates.length === 0) {
+    log('No coordinates to update preview');
+    return;
+  }
+  
+  try {
+    log(`Updating preview with ${coordinates.length} points using point drawing (size: ${pointSize}px)`);
+    
+    // Log some coordinate samples for debugging
+    if (coordinates.length > 0) {
+      log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
+      if (coordinates.length > 1) {
+        const lastIdx = coordinates.length - 1;
+        log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
+      }
     }
     
-    try {
-      log(`Updating preview with ${coordinates.length} points using point drawing (size: ${pointSize}px)`);
-      
-      // Log some coordinate samples for debugging
-      if (coordinates.length > 0) {
-        log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
-        if (coordinates.length > 1) {
-          const lastIdx = coordinates.length - 1;
-          log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
-        }
-      }
-      
-      // Get min/max values for logging
-      const xs = coordinates.map(coord => coord.x);
-      const ys = coordinates.map(coord => coord.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
-      
-      log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
-      
-      // Use auto-sizing with padding of 20px and specified point size
-      const padding = 20;
-      const result = createBMPFile(coordinates, padding, pointSize);
-      
-      // Update state with the new canvas info
-      setCanvasPreview(result.previewUrl);
-      setBmpData(result.bmpBlob);
-      
-      // Update the width/height state to match what was actually used
-      setImageWidth(result.canvas.width);
-      setImageHeight(result.canvas.height);
-      
-      log(`Canvas preview updated with auto-sized dimensions: ${result.canvas.width}x${result.canvas.height}`);
-    } catch (err) {
-      log(`Error updating canvas preview: ${err.message}`);
-      console.error("Preview update error:", err);
-    }
-  };
+    // Get min/max values for logging
+    const xs = coordinates.map(coord => coord.x);
+    const ys = coordinates.map(coord => coord.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    
+    log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+    
+    // Use auto-sizing with padding of 20px and specified point size
+    const padding = 20;
+    const result = createBMPFile(coordinates, padding, pointSize);
+    
+    // Update state with the new canvas info
+    setCanvasPreview(result.previewUrl);
+    setBmpData(result.bmpBlob);
+    
+    // Update the width/height state to match what was actually used
+    setImageWidth(result.canvas.width);
+    setImageHeight(result.canvas.height);
+    
+    log(`Canvas preview updated with auto-sized dimensions: ${result.canvas.width}x${result.canvas.height}`);
+  } catch (err) {
+    log(`Error updating canvas preview: ${err.message}`);
+    console.error("Preview update error:", err);
+  }
+};
 
-  // Function to convert blob to base64
-  const blobToBase64 = (blob) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // Get the base64 part after the comma: data:image/bmp;base64,BASE64_DATA
-        const base64String = reader.result.split(',')[1];
-        resolve(base64String);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
+// Function to convert blob to base64
+const blobToBase64 = (blob) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      // Get the base64 part after the comma: data:image/bmp;base64,BASE64_DATA
+      const base64String = reader.result.split(',')[1];
+      resolve(base64String);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
 
-  // Send image to Google Vision API for text recognition
-  const sendToVisionAPI = async () => {
-    if (!bmpData) {
-      log('No BMP data available to send to Vision API');
-      return;
-    }
+// Send image to Google Vision API for text recognition
+const sendToVisionAPI = async () => {
+  if (!bmpData) {
+    log('No BMP data available to send to Vision API');
+    return;
+  }
 
-    if (!apiKey) {
-      setShowApiKeyInput(true);
-      log('API key required to use Vision API');
-      return;
-    }
+  try {
+    setVisionApiStatus('Sending to Vision API...');
+    setIsSubmittingToVision(true);
+    log('Preparing image data for Vision API...');
 
-    try {
-      setVisionApiStatus('Sending to Vision API...');
-      setIsSubmittingToVision(true);
-      log('Preparing image data for Vision API...');
+    // Convert BMP blob to base64
+    const base64Image = await blobToBase64(bmpData);
+    log(`Image converted to base64 (${Math.floor(base64Image.length / 1024)}KB)`);
 
-      // Convert BMP blob to base64
-      const base64Image = await blobToBase64(bmpData);
-      log(`Image converted to base64 (${Math.floor(base64Image.length / 1024)}KB)`);
-
-      // Prepare the request
-      const visionRequest = {
-        requests: [
-          {
-            image: {
-              content: base64Image
-            },
-            features: [
-              {
-                type: 'TEXT_DETECTION',
-                maxResults: 10
-              },
-              {
-                type: 'DOCUMENT_TEXT_DETECTION',
-                maxResults: 10
-              }
-            ]
-          }
-        ]
-      };
-
-      log('Sending request to Vision API...');
-      const response = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+    // Prepare the request
+    const visionRequest = {
+      requests: [
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
+          image: {
+            content: base64Image
           },
-          body: JSON.stringify(visionRequest)
+          features: [
+            {
+              type: 'TEXT_DETECTION',
+              maxResults: 10
+            },
+            {
+              type: 'DOCUMENT_TEXT_DETECTION',
+              maxResults: 10
+            }
+          ]
         }
-      );
+      ]
+    };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+    log('Sending request to Vision API...');
+    const response = await fetch(
+      `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(visionRequest)
       }
+    );
 
-      const data = await response.json();
-      log('Response received from Vision API');
-
-      // Process and display results
-      setVisionApiResults(data);
-      setVisionApiStatus('Results received');
-      
-      // Extract the detected text for easy display
-      const detectedText = data.responses[0]?.fullTextAnnotation?.text || 
-                          'No text detected';
-      
-      log(`Detected text: ${detectedText.substring(0, 100)}${detectedText.length > 100 ? '...' : ''}`);
-      
-    } catch (err) {
-      log(`Vision API Error: ${err.message}`);
-      setVisionApiStatus(`Error: ${err.message}`);
-    } finally {
-      setIsSubmittingToVision(false);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} - ${errorText}`);
     }
-  };
+
+    const data = await response.json();
+    log('Response received from Vision API');
+
+    // Process and display results
+    setVisionApiResults(data);
+    setVisionApiStatus('Results received');
+    
+    // Extract the detected text for easy display
+    const detectedText = data.responses[0]?.fullTextAnnotation?.text || 
+                         'No text detected';
+    
+    log(`Detected text: ${detectedText.substring(0, 100)}${detectedText.length > 100 ? '...' : ''}`);
+    
+  } catch (err) {
+    log(`Vision API Error: ${err.message}`);
+    setVisionApiStatus(`Error: ${err.message}`);
+  } finally {
+    setIsSubmittingToVision(false);
+  }
+};
 
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
-      // Remove notification listener if it exists
-      if (characteristicRef.current) {
-        try {
-          characteristicRef.current.removeEventListener('characteristicvaluechanged', handleNotification);
-        } catch (err) {
-          console.error('Error removing notification listener:', err);
-        }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
       }
       
       if (connectedDevice && connectedDevice.gatt.connected) {
@@ -623,89 +576,23 @@ const processData = (data) => {
         </button>
         
         <button 
-          onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: '#FF9800',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          {showApiKeyInput ? 'Hide API Key Input' : 'Set Vision API Key'}
-        </button>
-        
-        <button 
           onClick={sendToVisionAPI}
-          disabled={!bmpData || !apiKey || isSubmittingToVision}
+          disabled={!bmpData || isSubmittingToVision}
           style={{ 
             padding: '8px 16px',
-            backgroundColor: (!bmpData || !apiKey || isSubmittingToVision) ? '#cccccc' : '#2196F3',
+            backgroundColor: (!bmpData || isSubmittingToVision) ? '#cccccc' : '#2196F3',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: (!bmpData || !apiKey || isSubmittingToVision) ? 'default' : 'pointer'
+            cursor: (!bmpData || isSubmittingToVision) ? 'default' : 'pointer'
           }}
         >
           {isSubmittingToVision ? 'Sending to Vision API...' : 'Send to Vision API'}
         </button>
       </div>
       
-      {/* Performance Metrics */}
-      {connectedDevice && (
-        <div style={{ 
-          marginBottom: '20px',
-          padding: '15px',
-          backgroundColor: '#e8f5e9',
-          borderRadius: '8px'
-        }}>
-          <h3 style={{ marginTop: 0 }}>Performance Metrics</h3>
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-            <div>
-              <strong>Points Received:</strong> {receivedPoints}
-            </div>
-            <div>
-              <strong>Time Elapsed:</strong> {receivedTime}s
-            </div>
-            <div>
-              <strong>Points per Second:</strong> {pointsRate}
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* API Key Input Section */}
-      {showApiKeyInput && (
-        <div style={{ 
-          marginBottom: '20px',
-          padding: '15px',
-          backgroundColor: '#f0f0f0',
-          borderRadius: '8px',
-          maxWidth: '500px'
-        }}>
-          <h3 style={{ marginTop: 0 }}>Google Vision API Key</h3>
-          <input 
-            type="text" 
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter your Google Vision API Key"
-            style={{ 
-              width: '100%',
-              padding: '8px',
-              marginBottom: '10px',
-              borderRadius: '4px',
-              border: '1px solid #ddd'
-            }}
-          />
-          <p style={{ fontSize: '0.8rem', color: '#555' }}>
-            Your API key is stored only in this browser session and is not saved permanently.
-          </p>
-        </div>
-      )}
-
       {/* Vision API Status */}
-      {apiKey && (
+      {(
         <div style={{ 
           marginBottom: '20px',
           padding: '10px',
