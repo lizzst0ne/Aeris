@@ -66,12 +66,12 @@ const createBMPFile = (coordinates, padding = 10, lineThickness = 2) => {
   const firstY = coordinates[0].y - minY + padding;
   ctx.moveTo(firstX, firstY);
   
-  // Connect all points with lines
-  for (let i = 1; i < coordinates.length; i++) {
-    const x = coordinates[i].x - minX + padding;
-    const y = coordinates[i].y - minY + padding;
-    ctx.lineTo(x, y);
-  }
+  // // Connect all points with lines
+  // for (let i = 1; i < coordinates.length; i++) {
+  //   const x = coordinates[i].x - minX + padding;
+  //   const y = coordinates[i].y - minY + padding;
+  //   ctx.lineTo(x, y);
+  // }
   
   // Stroke the path
   ctx.stroke();
