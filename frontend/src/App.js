@@ -423,7 +423,7 @@ function App() {
         backgroundColor: '#f5f5f5',
         borderBottom: '1px solid #ddd'
       }}>
-        <h1>Aetas Calendar</h1>
+        
         <div style={{marginTop:'10px', marginRight: '10px'}}>
           {user ? (
             <div className="user-info" style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
@@ -432,12 +432,12 @@ function App() {
               <button 
                 onClick={() => auth.signOut()}
                 style={{
-                  padding: '5px 10px',
-                  backgroundColor: '#f44336',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
+                  // padding: '5px 10px',
+                  // backgroundColor: '#f44336',
+                  // color: 'white',
+                  // border: 'none',
+                  // borderRadius: '4px',
+                  // cursor: 'pointer'
                 }}
               >
                 Sign Out
@@ -450,6 +450,8 @@ function App() {
       </header>
 
       <main style={{padding: '20px'}}>
+        <h1 style={{textAlign: 'center', marginTop: '30%'}}>Aetas Calendar</h1>
+        
         {/* User login section */}
         {!user && (
           <div className="login-prompt" style={{textAlign: 'center', marginBottom: '30px'}}>
@@ -468,8 +470,8 @@ function App() {
             {/* Bluetooth Connect Button - Now just for connecting */}
             <div style={{textAlign: 'center', marginTop: '20px', marginBottom: '20px'}}>
               <button 
-                onClick={connectToDevice}
-                disabled={connectedDevice !== null}
+                // onClick={connectToDevice}
+                // disabled={connectedDevice !== null}
                 style={{
                   border: '0.5px solid #1e1e1e', 
                   backgroundColor: connectedDevice ? '#e0e0ff' : '#C5C5F1', 
@@ -478,7 +480,7 @@ function App() {
                   height: '75px',
                   color: '#1e1e1e',
                   fontSize: '20px',
-                  cursor: connectedDevice ? 'default' : 'pointer'
+                  // cursor: connectedDevice ? 'default' : 'pointer'
                 }}
               >
                 {connectedDevice ? 'Bluetooth Connected' : 'Connect to Calendar'}
