@@ -82,7 +82,8 @@ function App() {
                           borderRadius: '30px', 
                           width: '75px', 
                           color: '#1e1e1e', 
-                          height: '30px'
+                          height: '30px',
+                          marginTop:'0'
                         }}>Sign Out</button>
                       <img src={user.photoURL} alt="Profile" className="profile-pic" style={{marginLeft:'4px', borderRadius: '50%', height: '30px'}}/>
                       {/* <span>Welcome, {user.displayName}</span> */}
