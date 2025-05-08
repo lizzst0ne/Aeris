@@ -164,11 +164,9 @@ const BluetoothPage = () => {
   const [imageWidth, setImageWidth] = useState(800);
   const [imageHeight, setImageHeight] = useState(600);
   const [bmpData, setBmpData] = useState(null);
-  // New states for Vision API
-  const [apiKey, setApiKey] = useState('');
+  // States for Vision API
   const [visionApiStatus, setVisionApiStatus] = useState('Not sent');
   const [visionApiResults, setVisionApiResults] = useState(null);
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [isSubmittingToVision, setIsSubmittingToVision] = useState(false);
   
   // Refs to maintain state between renders
@@ -425,12 +423,6 @@ const sendToVisionAPI = async () => {
     return;
   }
 
-  if (!apiKey) {
-    setShowApiKeyInput(true);
-    log('API key required to use Vision API');
-    return;
-  }
-
   try {
     setVisionApiStatus('Sending to Vision API...');
     setIsSubmittingToVision(true);
@@ -463,7 +455,7 @@ const sendToVisionAPI = async () => {
 
     log('Sending request to Vision API...');
     const response = await fetch(
-      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+      `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -584,66 +576,23 @@ const sendToVisionAPI = async () => {
         </button>
         
         <button 
-          onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: '#FF9800',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          {showApiKeyInput ? 'Hide API Key Input' : 'Set Vision API Key'}
-        </button>
-        
-        <button 
           onClick={sendToVisionAPI}
-          disabled={!bmpData || !apiKey || isSubmittingToVision}
+          disabled={!bmpData || isSubmittingToVision}
           style={{ 
             padding: '8px 16px',
-            backgroundColor: (!bmpData || !apiKey || isSubmittingToVision) ? '#cccccc' : '#2196F3',
+            backgroundColor: (!bmpData || isSubmittingToVision) ? '#cccccc' : '#2196F3',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: (!bmpData || !apiKey || isSubmittingToVision) ? 'default' : 'pointer'
+            cursor: (!bmpData || isSubmittingToVision) ? 'default' : 'pointer'
           }}
         >
           {isSubmittingToVision ? 'Sending to Vision API...' : 'Send to Vision API'}
         </button>
       </div>
       
-      {/* API Key Input Section */}
-      {showApiKeyInput && (
-        <div style={{ 
-          marginBottom: '20px',
-          padding: '15px',
-          backgroundColor: '#f0f0f0',
-          borderRadius: '8px',
-          maxWidth: '500px'
-        }}>
-          <h3 style={{ marginTop: 0 }}>Google Vision API Key</h3>
-          <input 
-            type="text" 
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter your Google Vision API Key"
-            style={{ 
-              width: '100%',
-              padding: '8px',
-              marginBottom: '10px',
-              borderRadius: '4px',
-              border: '1px solid #ddd'
-            }}
-          />
-          <p style={{ fontSize: '0.8rem', color: '#555' }}>
-            Your API key is stored only in this browser session and is not saved permanently.
-          </p>
-        </div>
-      )}
-
       {/* Vision API Status */}
-      {apiKey && (
+      {(
         <div style={{ 
           marginBottom: '20px',
           padding: '10px',
