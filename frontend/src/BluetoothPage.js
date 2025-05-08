@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 // Google Vision API key - replace with your actual API key
 const GOOGLE_VISION_API_KEY = 'AIzaSyDTKpqKc0TMHZlxtRhBW6SvMNGqTCU1_ss';
@@ -13,7 +13,7 @@ const formatCoordinateData = (coords) => {
   return `${coords.length} points collected`;
 };
 
-// Improved BMP generation functions with point drawing
+// Improved BMP generation functions with point drawing and bug fixes
 const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
   // If no coordinates, return a small blank canvas
   if (!coordinates || coordinates.length === 0) {
@@ -60,9 +60,10 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
   ctx.fillStyle = 'black';
   
   // Create a map to track which pixels have been drawn to avoid duplicates
+  // This helps prevent overdrawing which can cause those weird lines
   const drawnPixels = new Set();
   
-  // Draw each coordinate as a point
+  // Draw each coordinate as a point (small circle)
   coordinates.forEach(coord => {
     // Adjust coordinates relative to minX, minY + padding
     const x = Math.round(coord.x - minX + padding);
@@ -90,7 +91,7 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
   };
 };
 
-// Function to convert canvas to BMP file format
+// Function to convert canvas to BMP file format with proper alignment
 const canvasToBMP = (canvas) => {
   const width = canvas.width;
   const height = canvas.height;
@@ -103,7 +104,7 @@ const canvasToBMP = (canvas) => {
   // DIB header size (40 bytes for BITMAPINFOHEADER)
   const dibHeaderSize = 40;
   
-  // Calculate row size and padding
+  // Calculate row size with proper padding to avoid alignment issues
   // Each row in BMP needs to be multiple of 4 bytes
   const rowSize = Math.floor((24 * width + 31) / 32) * 4;
   const padding = rowSize - (width * 3);
@@ -155,7 +156,7 @@ const canvasToBMP = (canvas) => {
       view.setUint8(offset++, red);
     }
     
-    // Add padding at the end of each row
+    // Add padding at the end of each row (crucial for proper BMP format)
     for (let p = 0; p < padding; p++) {
       view.setUint8(offset++, 0);
     }
@@ -164,20 +165,40 @@ const canvasToBMP = (canvas) => {
   return new Blob([buffer], { type: 'image/bmp' });
 };
 
+// Debounce function for limiting frequent calls
+const debounce = (func, wait) => {
+  let timeout;
+  return function(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
 const BluetoothPage = () => {
+  // State variables for Bluetooth connection
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [currentData, setCurrentData] = useState(null);
+  
+  // State variables for data collection
   const [coordinates, setCoordinates] = useState([]);
   const [rawDataBuffer, setRawDataBuffer] = useState([]);
   const [dateInfo, setDateInfo] = useState(null);
   const [messageHistory, setMessageHistory] = useState([]);
   const [debugLog, setDebugLog] = useState([]);
+  
+  // State variables for canvas and bitmap
   const [canvasPreview, setCanvasPreview] = useState(null);
   const [imageWidth, setImageWidth] = useState(800);
   const [imageHeight, setImageHeight] = useState(600);
   const [bmpData, setBmpData] = useState(null);
   const [pointSize, setPointSize] = useState(3);
+  
+  // States for Vision API
   const [visionApiStatus, setVisionApiStatus] = useState('Not sent');
   const [visionApiResults, setVisionApiResults] = useState(null);
   const [isSubmittingToVision, setIsSubmittingToVision] = useState(false);
@@ -187,18 +208,36 @@ const BluetoothPage = () => {
   const dataCharRef = useRef(null);
   const lastValueRef = useRef('');
   const sessionStateRef = useRef('idle'); // idle, collecting, waiting_for_date, has_date, completed
+  const logPendingRef = useRef([]);
+  const logTimeoutRef = useRef(null);
   const dataPointCountRef = useRef(0);
-
-  // Helper for adding to debug log
-  const log = (msg) => {
+  
+  // Throttled log function to reduce UI updates
+  const log = useCallback((msg) => {
     const timestamp = new Date().toLocaleTimeString();
     const entry = `${timestamp} - ${msg}`;
-    setDebugLog((prev) => [entry, ...prev.slice(0, 20)]);
+    
+    // Always log to console
     console.log('[Bluetooth]', msg);
-  };
-
+    
+    // Queue log entry
+    logPendingRef.current.push(entry);
+    
+    // If no timeout is set, schedule an update
+    if (!logTimeoutRef.current) {
+      logTimeoutRef.current = setTimeout(() => {
+        setDebugLog(prevLog => {
+          const newLog = [...logPendingRef.current, ...prevLog].slice(0, 20);
+          logPendingRef.current = [];
+          logTimeoutRef.current = null;
+          return newLog;
+        });
+      }, 250); // Update every 250ms max
+    }
+  }, []);
+  
   // Process all buffered raw data at once
-  const processBufferedData = async () => {
+  const processBufferedData = useCallback(async () => {
     if (rawDataBuffer.length === 0) {
       log('No data in buffer to process');
       return false;
@@ -253,27 +292,21 @@ const BluetoothPage = () => {
     setIsProcessing(false);
     
     return true;
-  };
-
+  }, [rawDataBuffer, log]);
+  
   // Process received data based on message format
-  const processData = (data) => {
-    // IMPORTANT: This now CLOSELY matches your original implementation
-    // for the START message, which is the key part that's causing issues
-    
+  const processData = useCallback((data) => {
     // Check for control messages (START, STOP, END)
     if (data.includes('START-')) {
-      // Set the session state but minimize state changes
       sessionStateRef.current = 'collecting';
       dataPointCountRef.current = 0;
       log(`New data collection session started: ${data}`);
       
-      // Only clear coordinates, as in the original code
+      // Clear previous data and buffer
       setCoordinates([]);
       setRawDataBuffer([]);
-      
-      // DO NOT clear these as they might cause issues
-      // setCanvasPreview(null);
-      // setBmpData(null);
+      setCanvasPreview(null);
+      setBmpData(null);
       return;
     }
     
@@ -283,13 +316,11 @@ const BluetoothPage = () => {
       log(`Data collection stopped: ${data}`);
       log(`Total data points received: ${totalPoints}`);
       
-      // Process all buffered data and automatically generate bitmap
-      setStatus('Processing data and generating preview...');
+      // Process all buffered data
       processBufferedData().then(() => {
         log('Buffered data processing complete');
-        // Automatically update canvas after processing is done
-        updateCanvasPreview();
-        setStatus('Preview generated - Waiting for date');
+        // Update canvas after processing is done
+        setTimeout(() => updateCanvasPreview(), 100);
       });
       return;
     }
@@ -308,13 +339,8 @@ const BluetoothPage = () => {
       log(`Session completed: ${data}`);
       log(`Final data points count: ${dataPointCountRef.current}`);
       
-      // Check if preview needs updating
-      if (coordinates.length > 0 && !isProcessing) {
-        log('Refreshing final preview...');
-        updateCanvasPreview();
-      }
-      
-      setStatus('Session completed');
+      // Final canvas update
+      setTimeout(() => updateCanvasPreview(), 100);
       return;
     }
     
@@ -329,52 +355,10 @@ const BluetoothPage = () => {
         log(`Collected ${dataPointCountRef.current} data points so far`);
       }
     }
-  };
-
-  // Handle data received from the BLE characteristic
-  // Simplified to match more closely the original implementation
-  const handleDataReceived = (event) => {
-    try {
-      const value = event.target.value;
-      const textDecoder = new TextDecoder('utf-8');
-      const raw = textDecoder.decode(value);
-      const trimmed = raw.trim();
-
-      // Only process new values (different from the last one)
-      if (trimmed && trimmed !== lastValueRef.current) {
-        lastValueRef.current = trimmed;
-        setCurrentData(trimmed);
-        
-        // Simplified message history update
-        setMessageHistory(prev => [`Received: ${trimmed}`, ...prev.slice(0, 19)]);
-        
-        // Log all messages
-        log(`Data received: ${trimmed}`);
-        
-        // Process the message
-        processData(trimmed);
-      }
-    } catch (err) {
-      log(`Error decoding value: ${err.message}`);
-    }
-  };
-
-  // Function to convert blob to base64
-  const blobToBase64 = (blob) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // Get the base64 part after the comma: data:image/bmp;base64,BASE64_DATA
-        const base64String = reader.result.split(',')[1];
-        resolve(base64String);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
+  }, [log, processBufferedData]);
+  
   // Update canvas preview with point drawing
-  const updateCanvasPreview = () => {
+  const updateCanvasPreview = useCallback(() => {
     if (coordinates.length === 0) {
       log('No coordinates available to update preview');
       return;
@@ -397,6 +381,16 @@ const BluetoothPage = () => {
         }
       }
       
+      // Get min/max values for logging
+      const xs = coordinates.map(coord => coord.x);
+      const ys = coordinates.map(coord => coord.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      
+      log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+      
       // Use auto-sizing with padding of 20px and specified point size
       const padding = 20;
       const result = createBMPFile(coordinates, padding, pointSize);
@@ -414,21 +408,64 @@ const BluetoothPage = () => {
       log(`Error updating canvas preview: ${err.message}`);
       console.error("Preview update error:", err);
     }
-  };
+  }, [coordinates, pointSize, isProcessing, log]);
+  
+  // Debounced version of updateCanvasPreview to prevent too many updates
+  const debouncedUpdateCanvas = useCallback(
+    debounce(() => updateCanvasPreview(), 300),
+    [updateCanvasPreview]
+  );
+  
+  // Handle data received from the BLE characteristic
+  const handleDataReceived = useCallback((event) => {
+    try {
+      const value = event.target.value;
+      const textDecoder = new TextDecoder('utf-8');
+      const raw = textDecoder.decode(value);
+      const trimmed = raw.trim();
 
+      // Only process new values (different from the last one)
+      if (trimmed && trimmed !== lastValueRef.current) {
+        lastValueRef.current = trimmed;
+        setCurrentData(trimmed);
+        
+        // Only update UI history for control messages during collection to save resources
+        if (sessionStateRef.current !== 'collecting' || 
+            trimmed.includes('START-') || 
+            trimmed.includes('STOP-') ||
+            trimmed.includes('DATE-') ||
+            trimmed.includes('END-')) {
+          setMessageHistory(prev => [`Received: ${trimmed}`, ...prev.slice(0, 19)]);
+        }
+        
+        // Process the message
+        processData(trimmed);
+      }
+    } catch (err) {
+      log(`Error decoding value: ${err.message}`);
+    }
+  }, [log, processData]);
+  
+  // Function to convert blob to base64
+  const blobToBase64 = useCallback((blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Get the base64 part after the comma: data:image/bmp;base64,BASE64_DATA
+        const base64String = reader.result.split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+  
   // Set up notifications for the characteristic
-  const setupNotifications = async (characteristic) => {
+  const setupNotifications = useCallback(async (characteristic) => {
     dataCharRef.current = characteristic;
     log('Starting notifications for data characteristic');
 
     try {
-      // Remove any existing event listeners to avoid duplicates
-      try {
-        characteristic.removeEventListener('characteristicvaluechanged', handleDataReceived);
-      } catch (e) {
-        // Ignore errors from removing non-existent listeners
-      }
-      
       // Add event listener for notifications
       characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
       
@@ -439,10 +476,10 @@ const BluetoothPage = () => {
       log(`Error setting up notifications: ${err.message}`);
       setStatus(`Notification setup failed: ${err.message}`);
     }
-  };
-
+  }, [handleDataReceived, log]);
+  
   // Handle disconnection of device
-  const handleDisconnection = () => {
+  const handleDisconnection = useCallback(() => {
     setStatus('Disconnected');
     setConnectedDevice(null);
     dataCharRef.current = null;
@@ -450,19 +487,16 @@ const BluetoothPage = () => {
     sessionStateRef.current = 'idle';
     
     log('Device disconnected');
-  };
-
+  }, [log]);
+  
   // Connect to the Adafruit device
-  const connectToDevice = async () => {
+  const connectToDevice = useCallback(async () => {
     try {
       log('Requesting Bluetooth device...');
       const device = await navigator.bluetooth.requestDevice({
         filters: [{ name: 'very cool calendar we made' }],
         optionalServices: [CALENDAR_SERVICE_UUID]
       });
-      
-      // Listen for disconnection events
-      device.addEventListener('gattserverdisconnected', handleDisconnection);
       
       setConnectedDevice(device);
       setStatus('Connecting...');
@@ -483,14 +517,17 @@ const BluetoothPage = () => {
       // Set up notifications instead of polling
       await setupNotifications(characteristic);
       setStatus('Connected - Listening for Notifications');
+
+      // Listen for disconnection events
+      device.addEventListener('gattserverdisconnected', handleDisconnection);
     } catch (err) {
       log(`Connection failed: ${err.message}`);
       setStatus(`Connection failed: ${err.message}`);
     }
-  };
-
+  }, [log, setupNotifications, handleDisconnection]);
+  
   // Send image to Google Vision API for text recognition
-  const sendToVisionAPI = async () => {
+  const sendToVisionAPI = useCallback(async () => {
     if (!bmpData) {
       log('No BMP data available to send to Vision API');
       return;
@@ -562,11 +599,16 @@ const BluetoothPage = () => {
     } finally {
       setIsSubmittingToVision(false);
     }
-  };
-
+  }, [bmpData, blobToBase64, log]);
+  
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
+      // Clear any pending timeouts
+      if (logTimeoutRef.current) {
+        clearTimeout(logTimeoutRef.current);
+      }
+      
       // Clean up notification listener if characteristic exists
       if (dataCharRef.current) {
         try {
@@ -584,8 +626,8 @@ const BluetoothPage = () => {
         connectedDevice.gatt.disconnect();
       }
     };
-  }, [connectedDevice]);
-
+  }, [connectedDevice, handleDataReceived]);
+  
   // Display formatted Vision API results
   const renderVisionResults = () => {
     if (!visionApiResults) return null;
@@ -634,12 +676,59 @@ const BluetoothPage = () => {
       </div>
     );
   };
+  
+  // Status indicator component
+  const StatusIndicator = ({ status, isProcessing, isSubmittingToVision }) => {
+    let statusColor = '#e3f2fd'; // Default light blue
+    let statusText = status;
+    
+    if (status.includes('Not Connected')) {
+      statusColor = '#fff3e0'; // Light orange
+    } else if (status.includes('Connected')) {
+      statusColor = '#e8f5e9'; // Light green
+    }
+    
+    if (isProcessing) {
+      statusText = 'Processing data...';
+      statusColor = '#fff8e1'; // Light yellow
+    } else if (isSubmittingToVision) {
+      statusText = 'Submitting to Vision API...';
+      statusColor = '#e0f7fa'; // Light cyan
+    }
+    
+    return (
+      <div style={{ 
+        marginBottom: '20px',
+        padding: '10px',
+        backgroundColor: statusColor,
+        borderRadius: '4px',
+        maxWidth: '500px',
+        display: 'flex',
+        alignItems: 'center'
+      }}>
+        <div style={{
+          width: '12px',
+          height: '12px',
+          borderRadius: '50%',
+          backgroundColor: isProcessing || isSubmittingToVision ? '#ff9800' : 
+                           status.includes('Connected') ? '#4caf50' : '#f44336',
+          marginRight: '10px'
+        }}></div>
+        <strong>Status:</strong> {statusText}
+      </div>
+    );
+  };
 
   // Render the UI
   return (
     <div style={{ padding: '20px' }}>
       <h2>Bluetooth Calendar with Vision API</h2>
-      <p><strong>Status:</strong> {status}</p>
+      
+      <StatusIndicator 
+        status={status} 
+        isProcessing={isProcessing} 
+        isSubmittingToVision={isSubmittingToVision} 
+      />
       
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
         <button 
@@ -730,32 +819,55 @@ const BluetoothPage = () => {
         </div>
       </div>
 
-      {/* Data Display Section */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-        {/* Left Column - Status and Data */}
-        <div style={{ flex: '1 1 400px' }}>
+      {/* Data Collection Stats */}
+      <div style={{ 
+        marginBottom: '20px',
+        padding: '15px',
+        backgroundColor: isProcessing ? '#fff8e1' : '#f5f5f5',
+        borderRadius: '8px',
+        maxWidth: '500px'
+      }}>
+        <h3 style={{ marginTop: 0 }}>Data Collection Stats</h3>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
           <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-              {/* Current Info Panel */}
+            <strong>Session State:</strong> {sessionStateRef.current}
+          </div>
+          <div>
+            <strong>Date Info:</strong> {dateInfo || 'Not set'}
+          </div>
+          <div>
+            <strong>Coordinates:</strong> {formatCoordinateData(coordinates)}
+          </div>
+          <div>
+            <strong>Buffered Data:</strong> {rawDataBuffer.length} points
+          </div>
+          {isProcessing && (
+            <div style={{ width: '100%', marginTop: '10px' }}>
               <div style={{ 
-                flex: '1 1 300px',  
-                padding: '15px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '8px',
-                marginBottom: '15px'
+                width: '100%', 
+                height: '6px', 
+                backgroundColor: '#e0e0e0',
+                borderRadius: '3px',
+                overflow: 'hidden'
               }}>
-                <h3>Current Data</h3>
-                <p><strong>Last Message:</strong> {currentData || 'None'}</p>
-                <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
-                <p><strong>Session State:</strong> {sessionStateRef.current}</p>
-                <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
-                <p><strong>Buffered Data:</strong> {rawDataBuffer.length} points</p>
+                <div style={{
+                  width: `${Math.min(100, (coordinates.length / Math.max(1, rawDataBuffer.length)) * 100)}%`,
+                  height: '100%',
+                  backgroundColor: '#ff9800',
+                  transition: 'width 0.3s'
+                }}></div>
+              </div>
+              <div style={{ fontSize: '12px', marginTop: '5px', textAlign: 'center' }}>
+                Processing data... {coordinates.length} of {Math.max(1, rawDataBuffer.length)} points
               </div>
             </div>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Right Column - Canvas Preview and BMP Data */}
+      {/* Main Content Rows */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+        {/* Left Column - Image Preview */}
         <div style={{ 
           flex: '1 1 300px', 
           padding: '15px',
@@ -782,35 +894,97 @@ const BluetoothPage = () => {
               background: '#fff', 
               padding: '20px',
               textAlign: 'center',
-              color: '#999'
+              color: '#999',
+              height: '200px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}>
-              {coordinates.length > 0 ? 
+              {isProcessing ? (
+                "Processing data before preview..."
+              ) : (
+                coordinates.length > 0 ? 
                 "Preview loading..." : 
-                "No coordinates available to display preview"}
+                "No coordinates available to display preview"
+              )}
             </div>
           )}
           
           {/* Vision API Results */}
           {renderVisionResults()}
         </div>
-      </div>
-      
-      {/* Debug Log Section */}
-      <div style={{ marginTop: '30px' }}>
-        <h3>Debug Console</h3>
-        <pre style={{ 
-          background: '#333', 
-          color: '#f3f3f3',
-          padding: '10px', 
-          height: '200px', 
-          overflowY: 'scroll',
-          fontFamily: 'monospace',
-          borderRadius: '4px'
-        }}>
-          {debugLog.length > 0 ? 
-            debugLog.map((line, i) => <div key={i}>{line}</div>) : 
-            "No debug logs yet"}
-        </pre>
+
+        {/* Right Column - Status and Debug */}
+        <div style={{ flex: '1 1 300px' }}>
+          {/* Message History Panel */}
+          <div style={{ 
+            padding: '15px',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '8px',
+            marginBottom: '15px'
+          }}>
+            <h3>Last Message</h3>
+            <div style={{ 
+              border: '1px solid #ddd',
+              padding: '10px',
+              background: '#fff',
+              borderRadius: '4px',
+              color: sessionStateRef.current === 'collecting' ? '#757575' : '#212121',
+              fontFamily: 'monospace'
+            }}>
+              {currentData || 'No data received yet'}
+            </div>
+            
+            <h4 style={{ marginTop: '15px', marginBottom: '5px' }}>Recent Messages</h4>
+            <div style={{
+              maxHeight: '150px',
+              overflowY: 'auto',
+              border: '1px solid #ddd',
+              background: '#fff',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontFamily: 'monospace'
+            }}>
+              {messageHistory.length > 0 ? (
+                <ul style={{ listStyle: 'none', padding: '5px', margin: 0 }}>
+                  {messageHistory.map((msg, i) => (
+                    <li key={i} style={{ padding: '2px 5px' }}>
+                      {msg}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div style={{ padding: '10px', color: '#757575', textAlign: 'center' }}>
+                  No messages yet
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Debug Console */}
+          <div style={{ 
+            padding: '15px',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '8px',
+          }}>
+            <h3>Debug Console</h3>
+            <pre style={{ 
+              background: '#263238', 
+              color: '#eceff1',
+              padding: '10px', 
+              height: '200px', 
+              overflowY: 'scroll',
+              fontFamily: 'monospace',
+              borderRadius: '4px',
+              fontSize: '12px',
+              margin: 0
+            }}>
+              {debugLog.length > 0 ? 
+                debugLog.map((line, i) => <div key={i}>{line}</div>) : 
+                "No debug logs yet"}
+            </pre>
+          </div>
+        </div>
       </div>
     </div>
   );
