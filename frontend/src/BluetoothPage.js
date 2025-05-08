@@ -171,7 +171,6 @@ const BluetoothPage = () => {
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
-  const pollingIntervalRef = useRef(null);
   const lastValueRef = useRef('');
   const sessionStateRef = useRef('idle'); // idle, collecting, completed
   const canvasRef = useRef(null);
@@ -191,10 +190,6 @@ const BluetoothPage = () => {
     dataCharRef.current = null;
     setCurrentData(null);
     sessionStateRef.current = 'idle';
-    
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
     
     log('Device disconnected');
   };
@@ -273,8 +268,9 @@ const processData = (data) => {
 };
 
   // Handle data received from the BLE characteristic
-  const handleDataReceived = (value) => {
+  const handleDataReceived = (event) => {
     try {
+      const value = event.target.value;
       const textDecoder = new TextDecoder('utf-8');
       const raw = textDecoder.decode(value);
       const trimmed = raw.trim();
@@ -295,23 +291,22 @@ const processData = (data) => {
     }
   };
 
-  // Set up polling to regularly read the characteristic value
-  const setupPolling = async (characteristic) => {
+  // Set up notifications for the characteristic
+  const setupNotifications = async (characteristic) => {
     dataCharRef.current = characteristic;
-    log('Polling started (10ms interval)');
+    log('Starting notifications for data characteristic');
 
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        const value = await characteristic.readValue();
-        handleDataReceived(value);
-      } catch (err) {
-        log(`Polling error: ${err.message}`);
-        if (err.message.includes('disconnected')) {
-          clearInterval(pollingIntervalRef.current);
-          handleDisconnection();
-        }
-      }
-    }, 0.1); // Poll every 10ms
+    try {
+      // Add event listener for notifications
+      characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+      
+      // Start notifications
+      await characteristic.startNotifications();
+      log('Notifications started successfully');
+    } catch (err) {
+      log(`Error setting up notifications: ${err.message}`);
+      setStatus(`Notification setup failed: ${err.message}`);
+    }
   };
 
   // Connect to the Adafruit device
@@ -339,9 +334,9 @@ const processData = (data) => {
       const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
       log('Found data characteristic');
 
-      // Set up polling for data
-      await setupPolling(characteristic);
-      setStatus('Connected - Polling for Data');
+      // Set up notifications instead of polling
+      await setupNotifications(characteristic);
+      setStatus('Connected - Listening for Notifications');
 
       // Listen for disconnection events
       device.addEventListener('gattserverdisconnected', handleDisconnection);
@@ -494,8 +489,16 @@ const sendToVisionAPI = async () => {
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
+      // Clean up notification listener if characteristic exists
+      if (dataCharRef.current) {
+        try {
+          dataCharRef.current.removeEventListener('characteristicvaluechanged', handleDataReceived);
+          dataCharRef.current.stopNotifications().catch(err => {
+            console.error("Error stopping notifications:", err);
+          });
+        } catch (err) {
+          console.error("Cleanup error:", err);
+        }
       }
       
       if (connectedDevice && connectedDevice.gatt.connected) {
