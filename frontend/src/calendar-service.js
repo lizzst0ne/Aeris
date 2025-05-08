@@ -1,5 +1,5 @@
 // calendar-service.js
-const API_KEY = "AIzaSyCZG35-Cpxxh0cuQAD888ExXtcq5oKDigA"; // The API key you created
+const API_KEY = "AIzaSyCZG35-Cpxxh0cuQAD888ExXtcq5oKDigA";// The API key you created
 
 // Function to fetch user's calendar events
 export const fetchCalendarEvents = async (accessToken) => {

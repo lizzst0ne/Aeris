@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 // Your Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBYbff4B6k2D_CEhCj1GQiO2Ei-M3AuSl8",
+  apiKey: "AIzaSyCanx4SZADhwhqRTiekqhp34n8NBbPkRZk",
   authDomain: "aeris-451519.firebaseapp.com",
   projectId: "aeris-451519",
   storageBucket: "aeris-451519.firebasestorage.app",

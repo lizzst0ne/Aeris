@@ -62,10 +62,7 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
     const x = coord.x - minX + padding;
     const y = coord.y - minY + padding;
     
-    // Draw a filled rectangle for each point
-    //const halfSize = Math.floor(pointSize / 2);
-    
-      //Method 2: Draw as circle
+      //Draw as circle
       ctx.beginPath();
       ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
       ctx.fill();
