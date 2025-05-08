@@ -801,8 +801,8 @@ void whatsTheDate(){
           display.println(100);
         }
         else{
-          display.print(batteryPercent);
-          display.println("  ");
+          display.print(int(batteryPercent));
+          display.println("%  ");
         }
 
         changeNeeded = true;
