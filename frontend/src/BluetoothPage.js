@@ -348,21 +348,21 @@ const processData = (data) => {
   };
 
 
-/// Generate BMP file
-const handleGenerateBMP = () => {
-  if (coordinates.length === 0) {
-    log('No coordinates available to generate BMP');
-    return;
-  }
+// /// Generate BMP file
+// const handleGenerateBMP = () => {
+//   if (coordinates.length === 0) {
+//     log('No coordinates available to generate BMP');
+//     return;
+//   }
   
-  try {
-    log(`Generating BMP with ${coordinates.length} points using auto-sizing...`);
-    updateCanvasPreview(); // Use our shared function
-    log(`BMP generated and ready for Vision API: ${bmpData ? bmpData.size : 0} bytes`);
-  } catch (err) {
-    log(`Error generating BMP: ${err.message}`);
-  }
-};
+//   try {
+//     log(`Generating BMP with ${coordinates.length} points using auto-sizing...`);
+//     updateCanvasPreview(); // Use our shared function
+//     log(`BMP generated and ready for Vision API: ${bmpData ? bmpData.size : 0} bytes`);
+//   } catch (err) {
+//     log(`Error generating BMP: ${err.message}`);
+//   }
+// };
   
 // Add point size to state
 const [pointSize, setPointSize] = useState(3);
@@ -450,7 +450,7 @@ const updateCanvasPreview = () => {
           Connect to Calendar Device
         </button>
         
-        <button 
+        {/* <button 
           onClick={handleGenerateBMP}
           disabled={coordinates.length === 0}
           style={{ 
@@ -463,7 +463,7 @@ const updateCanvasPreview = () => {
           }}
         >
           Generate BMP
-        </button>
+        </button> */}
       </div>
 
 {/* Image Settings Display with Point Size Control */}
