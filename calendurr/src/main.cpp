@@ -222,7 +222,7 @@ void setup() {
   /*---------------------------------------------------*/
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
-  Bluefruit.setTxPower(4);
+  Bluefruit.setTxPower(8); // Increased from 4 to 8 for better range and stability
   Bluefruit.setName("very cool calendar we made");
 
   // Set up callbacks
@@ -365,7 +365,8 @@ void loop() {
 /*    proper format                                 */
 /*--------------------------------------------------*/
 void sendMessage(const char* msg) {
-  dataCharacteristic.write((uint8_t*)msg, strlen(msg));
+  // Use notify instead of write to enable notifications on Android
+  dataCharacteristic.notify((uint8_t*)msg, strlen(msg));
 }
 
 /*--------------------------------------------------*/
@@ -564,7 +565,7 @@ void sendData(){
     char stopMsg[20];
     sprintf(stopMsg, "STOP-%lu", messageCounter++);
     sendMessage(stopMsg);
-    delay(10);  // Small delay between messages
+    delay(5);  // Reduced delay between messages for faster response
     
     // Save date to internal storage and send it
     if(InternalFS.exists(DATES)){
@@ -581,14 +582,14 @@ void sendData(){
       char dateMsg[20];
       sprintf(dateMsg, "DATE-%lu:%s", messageCounter++, datBuffer);
       sendMessage(dateMsg);
-      delay(10);
+      delay(5); // Reduced delay
     }
     
     // Send "END" marker with timestamp
     char endMsg[20];
     sprintf(endMsg, "END-%lu", messageCounter++);
     sendMessage(endMsg);
-    delay(10);
+    delay(5); // Reduced delay
     
     // Send "START" marker for next data set
     char startMsg[20];
