@@ -70,13 +70,13 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
     
     // Alternative methods (commented out):
     
-    //Method 2: Draw as circle
-    ctx.beginPath();
-    ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
-    ctx.fill();
+    // //Method 2: Draw as circle
+    // ctx.beginPath();
+    // ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
+    // ctx.fill();
     
     // Method 3: Draw as single pixel (for very precise rendering)
-    // ctx.fillRect(x, y, 1, 1);
+    ctx.fillRect(x, y, 1, 1);
   });
 
   // Return both the canvas and the BMP data
