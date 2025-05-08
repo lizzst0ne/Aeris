@@ -10,8 +10,8 @@ const formatCoordinateData = (coords) => {
   return `${coords.length} points collected`;
 };
 
-// Improved BMP generation functions
-const createBMPFile = (coordinates, padding = 10, lineThickness = 2) => {
+// Improved BMP generation functions with point drawing
+const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
   // If no coordinates, return a small blank canvas
   if (!coordinates || coordinates.length === 0) {
     const canvas = document.createElement('canvas');
@@ -53,28 +53,31 @@ const createBMPFile = (coordinates, padding = 10, lineThickness = 2) => {
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, width, height);
   
-  // Draw black lines for the coordinates
+  // Set to black for drawing points
   ctx.fillStyle = 'black';
-  ctx.strokeStyle = 'black';
-  ctx.lineWidth = lineThickness;
   
-  // Start a path and adjust all coordinates relative to minX, minY + padding
-  ctx.beginPath();
-  
-  // Move to first point (adjusted for min values and padding)
-  const firstX = coordinates[0].x - minX + padding;
-  const firstY = coordinates[0].y - minY + padding;
-  ctx.moveTo(firstX, firstY);
-  
-  // // Connect all points with lines
-  // for (let i = 1; i < coordinates.length; i++) {
-  //   const x = coordinates[i].x - minX + padding;
-  //   const y = coordinates[i].y - minY + padding;
-  //   ctx.lineTo(x, y);
-  // }
-  
-  // Stroke the path
-  ctx.stroke();
+  // Draw each coordinate as a point (small rectangle)
+  coordinates.forEach(coord => {
+    // Adjust coordinates relative to minX, minY + padding
+    const x = coord.x - minX + padding;
+    const y = coord.y - minY + padding;
+    
+    // Draw a filled rectangle for each point
+    const halfSize = Math.floor(pointSize / 2);
+    
+    // Method 1: Draw as filled rectangle
+    ctx.fillRect(x - halfSize, y - halfSize, pointSize, pointSize);
+    
+    // Alternative methods (commented out):
+    
+    // Method 2: Draw as circle
+    // ctx.beginPath();
+    // ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
+    // ctx.fill();
+    
+    // Method 3: Draw as single pixel (for very precise rendering)
+    // ctx.fillRect(x, y, 1, 1);
+  });
 
   // Return both the canvas and the BMP data
   return {
@@ -351,7 +354,8 @@ const processData = (data) => {
     }
   };
 
-// Generate BMP file
+
+/// Generate BMP file
 const handleGenerateBMP = () => {
   if (coordinates.length === 0) {
     log('No coordinates available to generate BMP');
@@ -359,7 +363,7 @@ const handleGenerateBMP = () => {
   }
   
   try {
-    log(`Generating BMP with ${coordinates.length} coordinates using auto-sizing...`);
+    log(`Generating BMP with ${coordinates.length} points using auto-sizing...`);
     updateCanvasPreview(); // Use our shared function
     log(`BMP generated and ready for Vision API: ${bmpData ? bmpData.size : 0} bytes`);
   } catch (err) {
@@ -367,7 +371,10 @@ const handleGenerateBMP = () => {
   }
 };
   
-// Update canvas preview with auto-sizing
+// Add point size to state
+const [pointSize, setPointSize] = useState(3);
+
+// Update canvas preview with point drawing
 const updateCanvasPreview = () => {
   if (coordinates.length === 0) {
     log('No coordinates to update preview');
@@ -375,7 +382,7 @@ const updateCanvasPreview = () => {
   }
   
   try {
-    log(`Updating preview with ${coordinates.length} points using auto-sizing`);
+    log(`Updating preview with ${coordinates.length} points using point drawing (size: ${pointSize}px)`);
     
     // Log some coordinate samples for debugging
     if (coordinates.length > 0) {
@@ -396,9 +403,9 @@ const updateCanvasPreview = () => {
     
     log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
     
-    // Use auto-sizing with padding of 20px
+    // Use auto-sizing with padding of 20px and specified point size
     const padding = 20;
-    const result = createBMPFile(coordinates, padding, 2);
+    const result = createBMPFile(coordinates, padding, pointSize);
     
     // Update state with the new canvas info
     setCanvasPreview(result.previewUrl);
@@ -466,7 +473,7 @@ const updateCanvasPreview = () => {
         </button>
       </div>
 
-{/* Image Size Display - Changed from inputs to info display */}
+{/* Image Settings Display with Point Size Control */}
 <div style={{ 
   marginBottom: '20px',
   padding: '15px',
@@ -475,7 +482,7 @@ const updateCanvasPreview = () => {
   maxWidth: '500px'
 }}>
   <h3 style={{ marginTop: 0 }}>BMP Settings (Auto-sized)</h3>
-  <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+  <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
     <div>
       <label style={{ display: 'block', marginBottom: '5px' }}>Current Width:</label>
       <span style={{ padding: '5px', fontWeight: 'bold' }}>{imageWidth}px</span>
@@ -483,6 +490,17 @@ const updateCanvasPreview = () => {
     <div>
       <label style={{ display: 'block', marginBottom: '5px' }}>Current Height:</label>
       <span style={{ padding: '5px', fontWeight: 'bold' }}>{imageHeight}px</span>
+    </div>
+    <div>
+      <label style={{ display: 'block', marginBottom: '5px' }}>Point Size:</label>
+      <input 
+        type="number" 
+        value={pointSize} 
+        onChange={(e) => setPointSize(Math.max(1, Number(e.target.value)))}
+        min="1"
+        max="10"
+        style={{ padding: '5px', width: '60px' }}
+      />
     </div>
     <button 
       onClick={updateCanvasPreview}
@@ -493,7 +511,6 @@ const updateCanvasPreview = () => {
         color: 'white',
         border: 'none',
         borderRadius: '4px',
-        marginTop: '20px',
         cursor: coordinates.length === 0 ? 'default' : 'pointer'
       }}
     >
@@ -501,7 +518,8 @@ const updateCanvasPreview = () => {
     </button>
   </div>
   <p style={{ marginTop: '10px', fontSize: '0.9em', color: '#666' }}>
-    The BMP dimensions are automatically calculated based on the coordinate range.
+    The BMP dimensions are automatically calculated based on the coordinate range. 
+    Each coordinate is drawn as a {pointSize}×{pointSize} pixel point.
   </p>
 </div>
 
