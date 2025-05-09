@@ -1076,7 +1076,7 @@ const BluetoothPage = () => {
                   <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
   
                   {/* New Event Parsing Debug Section */}
-                  {currentData && (
+                  {currentData && detectedText && (
                     <>
                       <h4>Event Parsing Debug</h4>
                       <pre style={{ 
@@ -1092,7 +1092,7 @@ const BluetoothPage = () => {
                         {(() => {
                           try {
                             // Call your parsing function directly here for debugging
-                            const parsedEvent = parseTextToEventDetails(text, dateInfo);
+                            const parsedEvent = parseTextToEventDetails(detectedText, dateInfo);
                             return JSON.stringify(parsedEvent, null, 2);
                           } catch (err) {
                             return `Error parsing event: ${err.message}`;
