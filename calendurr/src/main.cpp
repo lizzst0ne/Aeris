@@ -113,7 +113,8 @@ int temp_y, temp_y_2, temp_y_3, temp_y_4;
 
 #define coeff 0.1 // Filter equation coefficient
 
-unsigned int coordz[1][2];
+unsigned int coordz[1000][2];
+int entriesCollected;
 int numEntriesSame;
 
 /*------------------------------------------*/
@@ -139,6 +140,13 @@ BLEBas blebas; // Battery Service
 
 boolean isConnected = false;
 boolean lastConnected = false;
+
+#define MAX_BATCH_SIZE 20
+#define BATCH_SEND_INTERVAL 100
+
+unsigned long lastBatchSendTime = 0;
+int batchIndex = 0;
+char batchBuffer[MAX_BATCH_SIZE * 15];
 
 /*------------------------------------------*/
 /*  Function Prototypes                     */
@@ -299,6 +307,7 @@ void setup() {
   /*---------------------------------------------------*/
   /*    Final initializations                          */
   /*---------------------------------------------------*/
+  entriesCollected = 0;
   isConnected = false; //Bluetooth is not connected
   lastConnected = true; // so BT status is printed for the first time
   
@@ -307,6 +316,8 @@ void setup() {
   startAdv();
 }
 
+
+int urmom = 0;
 /*--------------------------------------------------*/
 /*--                  MAIN LOOP                   --*/
 /*--------------------------------------------------*/
@@ -318,6 +329,12 @@ void loop() {
     unsigned long currentTime = millis();
     if (currentTime - lastButtonPress > debounceTime) {
       lastButtonPress = currentTime;
+      // for(int i = 0; i <= entriesCollected; i++){
+      //   char coordBuffer[20];
+      //   sprintf(coordBuffer, "C:%d,%d", coordz[i][0], coordz[i][1]);
+      //   sendMessage(coordBuffer);
+      // }
+      entriesCollected = 0;
       sendData();
       while (!digitalRead(SEND_BUTTON)) delay(10); // Wait for button release
     }
@@ -341,6 +358,16 @@ void loop() {
   if(isConnected){
     readSensor();
     
+    // if(entriesCollected > 99){
+    //   for(int i = 0; i <= entriesCollected; i++){
+    //     char coordBuffer[20];
+    //     sprintf(coordBuffer, "C:%d,%d", coordz[i][0], coordz[i][1]);
+    //     sendMessage(coordBuffer);
+    //   }
+
+    //   entriesCollected = 0;
+    // }
+    
     // Only send coordinate data at defined intervals
     // unsigned long currentTime = millis();
     // if (currentTime - lastCoordSendTime >= COORD_SEND_INTERVAL) {
@@ -355,7 +382,21 @@ void loop() {
     // }
   }
 
-  delay(1);
+  if(entriesCollected > 950){
+    display.setCursor(100, 5);
+    display.print("WAIT");
+    display.display();
+    for(int i = 0; i < entriesCollected; i++){
+      char coordBuffer[7];
+      sprintf(coordBuffer, "C:%d,%d", coordz[i][0], coordz[i][1]);
+      sendMessage(coordBuffer);
+    }
+    display.setCursor(100, 5);
+    display.print(" ok ");
+    display.display();
+    entriesCollected = 0;
+  }
+
 }
 
 /*--------------------------------------------------*/
@@ -482,13 +523,16 @@ void readSensor(){
           }
           
           // Store coordinates for sending
-          coordz[0][0] = avg_x;
-          coordz[0][1] = avg_y;
+          coordz[entriesCollected][0] = avg_x;
+          coordz[entriesCollected][1] = avg_y;
 
-          char coordBuffer[20];
-          sprintf(coordBuffer, "C:%d,%d", coordz[0][0], coordz[0][1]);
-          sendMessage(coordBuffer);
-
+          // char coordBuffer[7];
+          // sprintf(coordBuffer, "C:%d,%d", avg_x, avg_y);
+          // sendMessage(coordBuffer);
+          // urmom++;
+          entriesCollected++;
+          // Serial.println(urmom);
+          
           numEntriesSame = 0;
         }
         else {
@@ -527,6 +571,7 @@ void readSensor(){
         last_avg_y_3 = 0;
         last_avg_x_4 = 0;
         last_avg_y_4 = 0;
+
       }
     }
     else {
@@ -543,6 +588,24 @@ void readSensor(){
       last_avg_y_3 = 0;
       last_avg_x_4 = 0;
       last_avg_y_4 = 0;
+
+      if(entriesCollected > 100){
+        display.setCursor(100, 5);
+        display.print("WAIT");
+        display.display();
+
+        for(int i = 0; i < entriesCollected; i++){
+          char coordBuffer[7];
+          sprintf(coordBuffer, "C:%d,%d", coordz[i][0], coordz[i][1]);
+          sendMessage(coordBuffer);
+        }
+        display.setCursor(100, 5);
+        display.print(" ok ");
+        display.display();
+
+        entriesCollected = 0;
+      }
+      
     }
 
 
