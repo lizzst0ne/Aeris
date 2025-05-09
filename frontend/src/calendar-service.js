@@ -102,7 +102,11 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
     let eventDate = null;
     let description = '';
     
-    // DIRECT APPROACH: Split by hyphen
+    // Debug info for troubleshooting
+    console.log('Processing text:', text);
+    console.log('Lines:', lines);
+    
+    // APPROACH 1: Split by hyphen (for "HH:MM AM/PM - Title" format)
     const parts = firstLine.split('-');
     if (parts.length >= 2) {
       const timePart = parts[0].trim();
@@ -127,11 +131,43 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
         }
         
         eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-        console.log(`Parsed time from direct approach: ${hours}:${minutes} -> ${eventTime}`);
+        console.log(`Parsed time from hyphen approach: ${hours}:${minutes} -> ${eventTime}`);
         
         // Use the part after the hyphen as the title
         title = titlePart;
-        console.log('Using title from direct approach:', title);
+        console.log('Using title from hyphen approach:', title);
+      }
+    }
+    // APPROACH 2: Check if first line is only time and second line exists (for multiline format)
+    else {
+      const timeOnlyRegex = /^\s*(\d{1,2}):(\d{2})(?:\s*(AM|PM))?\s*$/i;
+      const firstLineTimeMatch = firstLine.match(timeOnlyRegex);
+      
+      if (firstLineTimeMatch && lines.length > 1) {
+        console.log('First line appears to be only time');
+        
+        let hours = parseInt(firstLineTimeMatch[1]);
+        const minutes = parseInt(firstLineTimeMatch[2]);
+        const ampm = firstLineTimeMatch[3] ? firstLineTimeMatch[3].toUpperCase() : null;
+        
+        // Convert to 24-hour format if AM/PM is specified
+        if (ampm === 'PM' && hours < 12) {
+          hours += 12;
+        } else if (ampm === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+        console.log(`Parsed time from multiline approach: ${hours}:${minutes} -> ${eventTime}`);
+        
+        // Use the second line as the title
+        title = lines[1].trim();
+        console.log('Using title from multiline approach:', title);
+        
+        // If there are more lines, use them as description
+        if (lines.length > 2) {
+          description = lines.slice(2).join('\n');
+        }
       }
     }
     
@@ -145,7 +181,7 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
       }
     }
     
-    // If direct approach didn't find a time, try the standard approach
+    // If neither approach found a time, try the standard approach looking through all lines
     if (!eventTime) {
       const timeRegex = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i;
       
@@ -154,7 +190,7 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
         const line = lines[i].trim();
         
         // Skip the first line if we already tried to parse it
-        if (i === 0 && parts.length >= 2) continue;
+        if (i === 0) continue;
         
         // Check for time
         const timeMatch = line.match(timeRegex);
@@ -176,7 +212,6 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
         }
       }
     }
-    
     
     // Default to today if no date detected
     if (!eventDate) {
