@@ -344,8 +344,9 @@ const BluetoothPage = () => {
     }
   };
 
+  
   // Connect to the Adafruit device
-  const connectToDevice = async () => {
+  async function connectToDevice() {
     try {
       log('Requesting Bluetooth device...');
       const device = await navigator.bluetooth.requestDevice({
@@ -380,7 +381,8 @@ const BluetoothPage = () => {
       setStatus(`Connection failed: ${err.message}`);
     }
   };
-
+  module.exports.connectToDevice = connectToDevice;
+  
   // Add a new function to force update the canvas with direct coordinates
   const updateCanvasPreview = (coordsToUse) => {
     if (!coordsToUse || coordsToUse.length === 0) {
