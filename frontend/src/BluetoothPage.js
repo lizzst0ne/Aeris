@@ -163,6 +163,43 @@ const canvasToBMP = (canvas) => {
   return new Blob([buffer], { type: 'image/bmp' });
 };
 
+
+export const connectToDevice = async () => {
+    try {
+      log('Requesting Bluetooth device...');
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ name: 'very cool calendar we made' }],
+        optionalServices: [CALENDAR_SERVICE_UUID]
+      });
+      
+      setConnectedDevice(device);
+      setStatus('Connecting...');
+      log('Connecting to GATT server...');
+
+      // Connect to the GATT server
+      const server = await device.gatt.connect();
+      log('Connected to GATT server');
+
+      // Get the calendar service
+      const service = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
+      log('Found calendar service');
+
+      // Get the data characteristic
+      const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
+      log('Found data characteristic');
+
+      // Set up notifications instead of polling
+      await setupNotifications(characteristic);
+      setStatus('Connected - Listening for Notifications');
+
+      // Listen for disconnection events
+      device.addEventListener('gattserverdisconnected', handleDisconnection);
+    } catch (err) {
+      log(`Connection failed: ${err.message}`);
+      setStatus(`Connection failed: ${err.message}`);
+    }
+  };
+
 const BluetoothPage = () => {
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
@@ -348,41 +385,41 @@ const BluetoothPage = () => {
 
   
   // Connect to the Adafruit device
-  const connectToDevice = async () => {
-    try {
-      log('Requesting Bluetooth device...');
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [{ name: 'very cool calendar we made' }],
-        optionalServices: [CALENDAR_SERVICE_UUID]
-      });
+  // const connectToDevice = async () => {
+  //   try {
+  //     log('Requesting Bluetooth device...');
+  //     const device = await navigator.bluetooth.requestDevice({
+  //       filters: [{ name: 'very cool calendar we made' }],
+  //       optionalServices: [CALENDAR_SERVICE_UUID]
+  //     });
       
-      setConnectedDevice(device);
-      setStatus('Connecting...');
-      log('Connecting to GATT server...');
+  //     setConnectedDevice(device);
+  //     setStatus('Connecting...');
+  //     log('Connecting to GATT server...');
 
-      // Connect to the GATT server
-      const server = await device.gatt.connect();
-      log('Connected to GATT server');
+  //     // Connect to the GATT server
+  //     const server = await device.gatt.connect();
+  //     log('Connected to GATT server');
 
-      // Get the calendar service
-      const service = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
-      log('Found calendar service');
+  //     // Get the calendar service
+  //     const service = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
+  //     log('Found calendar service');
 
-      // Get the data characteristic
-      const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
-      log('Found data characteristic');
+  //     // Get the data characteristic
+  //     const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
+  //     log('Found data characteristic');
 
-      // Set up notifications instead of polling
-      await setupNotifications(characteristic);
-      setStatus('Connected - Listening for Notifications');
+  //     // Set up notifications instead of polling
+  //     await setupNotifications(characteristic);
+  //     setStatus('Connected - Listening for Notifications');
 
-      // Listen for disconnection events
-      device.addEventListener('gattserverdisconnected', handleDisconnection);
-    } catch (err) {
-      log(`Connection failed: ${err.message}`);
-      setStatus(`Connection failed: ${err.message}`);
-    }
-  };
+  //     // Listen for disconnection events
+  //     device.addEventListener('gattserverdisconnected', handleDisconnection);
+  //   } catch (err) {
+  //     log(`Connection failed: ${err.message}`);
+  //     setStatus(`Connection failed: ${err.message}`);
+  //   }
+  // };
 
   
   // Add a new function to force update the canvas with direct coordinates
