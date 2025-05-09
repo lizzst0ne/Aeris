@@ -255,7 +255,7 @@ const processData = (data) => {
         coordinatesRef.current.push({ x: rawX, y: rawY });
         
         // Only update state every N coordinates (e.g., every 10)
-        if (coordinatesRef.current.length % 10 === 0) {
+        if (coordinatesRef.current.length % 100 === 0) {
           setCoordinates([...coordinatesRef.current]);
         }
       } else {
