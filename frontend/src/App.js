@@ -91,7 +91,7 @@ function App() {
                   </div>
                 )}*/}
                 
-                {user && (
+                {/* {user && ( */}
                   <div style={{textAlign: 'center', marginTop: '40%'}}>
                     <Link to="/bluetooth">
                       <button style={{
@@ -105,7 +105,7 @@ function App() {
                       }}>Connect to Calendar</button>
                     </Link>
                   </div>
-                )}
+                {/* )} */}
               </main>
             }
           />
