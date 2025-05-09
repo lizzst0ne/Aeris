@@ -1013,7 +1013,7 @@ const BluetoothPage = () => {
     <div>
       <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
     
-        <div style={{textAlign: 'center', marginTop: '40%'}}>
+        <div style={{textAlign: 'center', marginTop: '40%', marginBottom: '50px'}}>
           <button 
             onClick={connectToDevice}
             disabled={connectedDevice !== null}
@@ -1026,6 +1026,10 @@ const BluetoothPage = () => {
               color: '#1e1e1e',
               fontSize: '20px'
             }}>Connect to Calendar</button>
+
+            {connectedDevice && (
+              <p>Calendar Connected!</p>
+            )}
         </div>  
                
       <div style={{ padding: '20px' }}>
