@@ -97,7 +97,7 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
     let firstLine = lines[0].trim();
     
     // Initialize event information
-    let title = firstLine; // Default to using the whole line as title
+    let title = 'ur mom'; // Default to using the whole line as title
     let eventTime = null;
     let eventDate = null;
     let description = '';
