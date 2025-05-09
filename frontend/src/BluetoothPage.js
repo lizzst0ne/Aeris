@@ -194,74 +194,81 @@ const BluetoothPage = () => {
     log('Device disconnected');
   };
 
-  const processData = (data) => {
-    // Check for control messages (START, STOP, END)
-    if (data.includes('START-')) {
-      sessionStateRef.current = 'collecting';
-      log(`New data collection session started: ${data}`);
-      setCoordinates([]);
-      return;
-    }
+// Add this to your existing refs
+const coordinatesRef = useRef([]);
+
+// Modify your processData function to use the ref directly
+const processData = (data) => {
+  // Check for control messages (START, STOP, END)
+  if (data.includes('START-')) {
+    sessionStateRef.current = 'collecting';
+    log(`New data collection session started: ${data}`);
+    // Clear both the state and the ref
+    coordinatesRef.current = [];
+    setCoordinates([]);
+    return;
+  }
+  
+  if (data.includes('STOP-')) {
+    sessionStateRef.current = 'waiting_for_date';
+    log(`Data collection stopped: ${data}`);
+    log(`Total coordinates received: ${coordinatesRef.current.length}`);
     
-    if (data.includes('STOP-')) {
-      sessionStateRef.current = 'waiting_for_date';
-      log(`Data collection stopped: ${data}`);
-      log(`Total coordinates received: ${coordinates.length}`);
+    // Directly update the preview using the coordinates from the ref
+    if (coordinatesRef.current.length > 0) {
+      log(`Forcing preview update with ${coordinatesRef.current.length} points`);
+      forceUpdateCanvasPreview(coordinatesRef.current);
+    } else {
+      log('No coordinates available to display preview');
+    }
+    return;
+  }
+  
+  if (data.includes('DATE-')) {
+    sessionStateRef.current = 'has_date';
+    // Extract date information from format "DATE-[counter]:[month],[day]"
+    const dateContent = data.split(':')[1] || '';
+    setDateInfo(dateContent);
+    log(`Date received: ${dateContent}`);
+    return;
+  }
+  
+  if (data.includes('END-')) {
+    sessionStateRef.current = 'completed';
+    log(`Session completed: ${data}`);
+    log(`Final coordinates count: ${coordinatesRef.current.length}`);
+    return;
+  }
+  
+  // Process coordinate data (format: "[counter]:[x],[y]")
+  if (sessionStateRef.current === 'collecting' && data.includes(':')) {
+    const parts = data.split(':');
+    if (parts.length === 2) {
+      const coordData = parts[1];
+      const [rawX, rawY] = coordData.split(',').map(Number);
       
-      // Use setTimeout to ensure state updates have completed
-      setTimeout(() => {
-        if (coordinates.length > 0) {
-          log(`Updating preview with ${coordinates.length} coordinates after STOP signal`);
-          updateCanvasPreview();
-        } else {
-          log('No coordinates available for preview update after STOP signal');
-        }
-      }, 100);
-      return;
-    }
-    
-    if (data.includes('DATE-')) {
-      sessionStateRef.current = 'has_date';
-      // Extract date information from format "DATE-[counter]:[month],[day]"
-      const dateContent = data.split(':')[1] || '';
-      setDateInfo(dateContent);
-      log(`Date received: ${dateContent}`);
-      return;
-    }
-    
-    if (data.includes('END-')) {
-      sessionStateRef.current = 'completed';
-      log(`Session completed: ${data}`);
-      log(`Final coordinates count: ${coordinates.length}`);
-      return;
-    }
-    
-    // Process coordinate data (format: "[counter]:[x],[y]")
-    if (sessionStateRef.current === 'collecting' && data.includes(':')) {
-      const parts = data.split(':');
-      if (parts.length === 2) {
-        const coordData = parts[1];
-        const [rawX, rawY] = coordData.split(',').map(Number);
+      if (!isNaN(rawX) && !isNaN(rawY)) {
+        // Add debugging info for raw coordinates
+        log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
         
-        if (!isNaN(rawX) && !isNaN(rawY)) {
-          // Add debugging info for raw coordinates
-          log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
-          
-          // Use the exact coordinates without scaling
-          const x = rawX;
-          const y = rawY;
-          
-          setCoordinates(prev => {
-            const newCoords = [...prev, { x, y }];
-          
-            return newCoords;
-          });
-        } else {
-          log(`Invalid coordinate data: ${coordData}`);
-        }
+        // Use the exact coordinates without scaling
+        const x = rawX;
+        const y = rawY;
+        
+        // Update both the ref and the state
+        const newCoord = { x, y };
+        coordinatesRef.current = [...coordinatesRef.current, newCoord];
+        
+        setCoordinates(prev => {
+          const newCoords = [...prev, newCoord];
+          return newCoords;
+        });
+      } else {
+        log(`Invalid coordinate data: ${coordData}`);
       }
     }
-  };
+  }
+};
 
   // Handle data received from the BLE characteristic
   const handleDataReceived = (event) => {
@@ -345,28 +352,28 @@ const BluetoothPage = () => {
 // Add point size to state
 const [pointSize, setPointSize] = useState(3);
 
-// Update canvas preview with point drawing
-const updateCanvasPreview = () => {
-  if (coordinates.length === 0) {
-    log('No coordinates to update preview');
+// Add a new function to force update the canvas with direct coordinates
+const forceUpdateCanvasPreview = (coordsToUse) => {
+  if (!coordsToUse || coordsToUse.length === 0) {
+    log('No coordinates provided to force update preview');
     return;
   }
   
   try {
-    log(`Updating preview with ${coordinates.length} points using point drawing (size: ${pointSize}px)`);
+    log(`Forcing preview update with ${coordsToUse.length} points using point drawing (size: ${pointSize}px)`);
     
     // Log some coordinate samples for debugging
-    if (coordinates.length > 0) {
-      log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
-      if (coordinates.length > 1) {
-        const lastIdx = coordinates.length - 1;
-        log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
+    if (coordsToUse.length > 0) {
+      log(`First coordinate: (${coordsToUse[0].x}, ${coordsToUse[0].y})`);
+      if (coordsToUse.length > 1) {
+        const lastIdx = coordsToUse.length - 1;
+        log(`Last coordinate: (${coordsToUse[lastIdx].x}, ${coordsToUse[lastIdx].y})`);
       }
     }
     
     // Get min/max values for logging
-    const xs = coordinates.map(coord => coord.x);
-    const ys = coordinates.map(coord => coord.y);
+    const xs = coordsToUse.map(coord => coord.x);
+    const ys = coordsToUse.map(coord => coord.y);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
@@ -376,7 +383,7 @@ const updateCanvasPreview = () => {
     
     // Use auto-sizing with padding of 20px and specified point size
     const padding = 20;
-    const result = createBMPFile(coordinates, padding, pointSize);
+    const result = createBMPFile(coordsToUse, padding, pointSize);
     
     // Update state with the new canvas info
     setCanvasPreview(result.previewUrl);
@@ -386,12 +393,64 @@ const updateCanvasPreview = () => {
     setImageWidth(result.canvas.width);
     setImageHeight(result.canvas.height);
     
-    log(`Canvas preview updated with auto-sized dimensions: ${result.canvas.width}x${result.canvas.height}`);
+    log(`Canvas preview force updated with auto-sized dimensions: ${result.canvas.width}x${result.canvas.height}`);
   } catch (err) {
-    log(`Error updating canvas preview: ${err.message}`);
+    log(`Error forcing canvas preview update: ${err.message}`);
     console.error("Preview update error:", err);
   }
 };
+// Update canvas preview with point drawing
+// Keep the original updateCanvasPreview function for manual updates if needed
+const updateCanvasPreview = () => {
+  forceUpdateCanvasPreview(coordinates);
+};
+
+// const updateCanvasPreview = () => {
+//   if (coordinates.length === 0) {
+//     log('No coordinates to update preview');
+//     return;
+//   }
+  
+//   try {
+//     log(`Updating preview with ${coordinates.length} points using point drawing (size: ${pointSize}px)`);
+    
+//     // Log some coordinate samples for debugging
+//     if (coordinates.length > 0) {
+//       log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
+//       if (coordinates.length > 1) {
+//         const lastIdx = coordinates.length - 1;
+//         log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
+//       }
+//     }
+    
+//     // Get min/max values for logging
+//     const xs = coordinates.map(coord => coord.x);
+//     const ys = coordinates.map(coord => coord.y);
+//     const minX = Math.min(...xs);
+//     const maxX = Math.max(...xs);
+//     const minY = Math.min(...ys);
+//     const maxY = Math.max(...ys);
+    
+//     log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+    
+//     // Use auto-sizing with padding of 20px and specified point size
+//     const padding = 20;
+//     const result = createBMPFile(coordinates, padding, pointSize);
+    
+//     // Update state with the new canvas info
+//     setCanvasPreview(result.previewUrl);
+//     setBmpData(result.bmpBlob);
+    
+//     // Update the width/height state to match what was actually used
+//     setImageWidth(result.canvas.width);
+//     setImageHeight(result.canvas.height);
+    
+//     log(`Canvas preview updated with auto-sized dimensions: ${result.canvas.width}x${result.canvas.height}`);
+//   } catch (err) {
+//     log(`Error updating canvas preview: ${err.message}`);
+//     console.error("Preview update error:", err);
+//   }
+// };
 
 // Function to convert blob to base64
 const blobToBase64 = (blob) => {
