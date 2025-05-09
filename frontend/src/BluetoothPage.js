@@ -4,7 +4,8 @@ import {
   createCalendarEvent, 
   getAccessToken, 
   startGoogleAuthFlow,
-  createEventFromDetectedText
+  createEventFromDetectedText,
+  parseTextToEventDetails
 } from './calendar-service';
 
 // Google Vision API key - replace with your actual API key
