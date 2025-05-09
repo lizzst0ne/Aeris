@@ -208,7 +208,7 @@ const processData = (data) => {
     sessionStateRef.current = 'waiting_for_date';
     log(`Data collection stopped: ${data}`);
     log(`Total coordinates received: ${coordinates.length}`);
-    
+    updateCanvasPreview()
     return;
   }
   
@@ -624,7 +624,7 @@ const sendToVisionAPI = async () => {
               style={{ padding: '5px', width: '60px' }}
             />
           </div>
-          <button 
+          {/* <button 
             onClick={updateCanvasPreview}
             disabled={coordinates.length === 0}
             style={{ 
@@ -637,7 +637,7 @@ const sendToVisionAPI = async () => {
             }}
           >
             Update Preview
-          </button>
+          </button> */}
         </div>
       </div>
 
