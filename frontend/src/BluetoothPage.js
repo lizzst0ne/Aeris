@@ -1033,8 +1033,8 @@ const BluetoothPage = () => {
         </div>  
                
       <div style={{ padding: '20px' }}>
-        {/* <h2>Bluetooth Calendar with Vision API</h2>
-        <p><strong>Status:</strong> {status}</p> */}
+        {/* <h2>Bluetooth Calendar with Vision API</h2> */}
+        <p><strong>Status:</strong> {status}</p>
         
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
           {/* <button 
@@ -1069,7 +1069,7 @@ const BluetoothPage = () => {
         </div>
         
         {/* Vision API Status */}
-        {/* {(
+        {(
           <div style={{ 
             marginBottom: '20px',
             padding: '10px',
@@ -1079,7 +1079,7 @@ const BluetoothPage = () => {
           }}>
             <strong>Vision API Status:</strong> {visionApiStatus}
           </div>
-        )} */}
+        )}
 
         {/* Data Display Section */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
