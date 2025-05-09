@@ -1092,7 +1092,7 @@ const BluetoothPage = () => {
                         {(() => {
                           try {
                             // Call your parsing function directly here for debugging
-                            const parsedEvent = parseTextToEventDetails(currentData, dateInfo);
+                            const parsedEvent = parseTextToEventDetails(text, dateInfo);
                             return JSON.stringify(parsedEvent, null, 2);
                           } catch (err) {
                             return `Error parsing event: ${err.message}`;
