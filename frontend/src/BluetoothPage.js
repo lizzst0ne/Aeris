@@ -251,21 +251,13 @@ const processData = (data) => {
       const [rawX, rawY] = coordData.split(',').map(Number);
       
       if (!isNaN(rawX) && !isNaN(rawY)) {
-        // Add debugging info for raw coordinates
-        log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
+        // Add to ref immediately without state update
+        coordinatesRef.current.push({ x: rawX, y: rawY });
         
-        // Use the exact coordinates without scaling
-        const x = rawX;
-        const y = rawY;
-        
-        // Update both the ref and the state
-        const newCoord = { x, y };
-        coordinatesRef.current = [...coordinatesRef.current, newCoord];
-        
-        setCoordinates(prev => {
-          const newCoords = [...prev, newCoord];
-          return newCoords;
-        });
+        // Only update state every N coordinates (e.g., every 10)
+        if (coordinatesRef.current.length % 10 === 0) {
+          setCoordinates([...coordinatesRef.current]);
+        }
       } else {
         log(`Invalid coordinate data: ${coordData}`);
       }
