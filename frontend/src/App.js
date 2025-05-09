@@ -5,13 +5,15 @@ import GoogleLoginButton from './GoogleLoginButton';
 import CalendarComponent from './CalendarComponent';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import BluetoothPage from './BluetoothPage';
-import {connectToDevice} from './BluetoothPage';
+import {connectToDevice, connectedDevice, log, setupNotifications, handleDisconnection} from './BluetoothPage';
 
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState(null);
+  const [connectedDevice, setConnectedDevice] = useState(null);
+  const [status, setStatus] = useState('Not Connected');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {

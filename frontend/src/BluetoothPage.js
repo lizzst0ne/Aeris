@@ -200,6 +200,51 @@ export const connectToDevice = async () => {
     }
   };
 
+export const log = (msg) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = `${timestamp} - ${msg}`;
+    setDebugLog((prev) => [entry, ...prev.slice(0, 20)]);
+    console.log('[Bluetooth]', msg);
+  };
+
+export const setupNotifications = async (characteristic) => {
+    dataCharRef.current = characteristic;
+    log('Starting notifications for data characteristic');
+  
+    try {
+      // Add event listener for notifications
+      characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+      
+      // Request a faster connection interval if the device supports it
+      if (connectedDevice && connectedDevice.gatt) {
+        // This is optional and might not be supported by all devices
+        try {
+          await connectedDevice.gatt.requestConnectionPriorityChange('high');
+          log('Requested high priority connection');
+        } catch (e) {
+          log('Connection priority change not supported or failed');
+        }
+      }
+      
+      // Start notifications
+      await characteristic.startNotifications();
+      log('Notifications started successfully');
+    } catch (err) {
+      log(`Error setting up notifications: ${err.message}`);
+      setStatus(`Notification setup failed: ${err.message}`);
+    }
+  };
+
+export const handleDisconnection = () => {
+    setStatus('Disconnected');
+    setConnectedDevice(null);
+    dataCharRef.current = null;
+    setCurrentData(null);
+    sessionStateRef.current = 'idle';
+    
+    log('Device disconnected');
+  };
+
 const BluetoothPage = () => {
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
@@ -237,23 +282,23 @@ const BluetoothPage = () => {
   const coordinatesRef = useRef([]);
 
   // Helper for adding to debug log
-  const log = (msg) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const entry = `${timestamp} - ${msg}`;
-    setDebugLog((prev) => [entry, ...prev.slice(0, 20)]);
-    console.log('[Bluetooth]', msg);
-  };
+  // const log = (msg) => {
+  //   const timestamp = new Date().toLocaleTimeString();
+  //   const entry = `${timestamp} - ${msg}`;
+  //   setDebugLog((prev) => [entry, ...prev.slice(0, 20)]);
+  //   console.log('[Bluetooth]', msg);
+  // };
 
   // Handle disconnection of device
-  const handleDisconnection = () => {
-    setStatus('Disconnected');
-    setConnectedDevice(null);
-    dataCharRef.current = null;
-    setCurrentData(null);
-    sessionStateRef.current = 'idle';
+  // const handleDisconnection = () => {
+  //   setStatus('Disconnected');
+  //   setConnectedDevice(null);
+  //   dataCharRef.current = null;
+  //   setCurrentData(null);
+  //   sessionStateRef.current = 'idle';
     
-    log('Device disconnected');
-  };
+  //   log('Device disconnected');
+  // };
 
   // Process data received from the BLE device
   const processData = (data) => {
@@ -355,33 +400,33 @@ const BluetoothPage = () => {
   };
 
   // Set up notifications for the characteristic
-  const setupNotifications = async (characteristic) => {
-    dataCharRef.current = characteristic;
-    log('Starting notifications for data characteristic');
+  // const setupNotifications = async (characteristic) => {
+  //   dataCharRef.current = characteristic;
+  //   log('Starting notifications for data characteristic');
   
-    try {
-      // Add event listener for notifications
-      characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+  //   try {
+  //     // Add event listener for notifications
+  //     characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
       
-      // Request a faster connection interval if the device supports it
-      if (connectedDevice && connectedDevice.gatt) {
-        // This is optional and might not be supported by all devices
-        try {
-          await connectedDevice.gatt.requestConnectionPriorityChange('high');
-          log('Requested high priority connection');
-        } catch (e) {
-          log('Connection priority change not supported or failed');
-        }
-      }
+  //     // Request a faster connection interval if the device supports it
+  //     if (connectedDevice && connectedDevice.gatt) {
+  //       // This is optional and might not be supported by all devices
+  //       try {
+  //         await connectedDevice.gatt.requestConnectionPriorityChange('high');
+  //         log('Requested high priority connection');
+  //       } catch (e) {
+  //         log('Connection priority change not supported or failed');
+  //       }
+  //     }
       
-      // Start notifications
-      await characteristic.startNotifications();
-      log('Notifications started successfully');
-    } catch (err) {
-      log(`Error setting up notifications: ${err.message}`);
-      setStatus(`Notification setup failed: ${err.message}`);
-    }
-  };
+  //     // Start notifications
+  //     await characteristic.startNotifications();
+  //     log('Notifications started successfully');
+  //   } catch (err) {
+  //     log(`Error setting up notifications: ${err.message}`);
+  //     setStatus(`Notification setup failed: ${err.message}`);
+  //   }
+  // };
 
   
   // Connect to the Adafruit device
