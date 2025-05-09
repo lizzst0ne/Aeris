@@ -83,13 +83,13 @@ function App() {
               <main>
                 <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
 
-                {user ? (
+ {/*             {user ? (
                   <CalendarComponent />
                 ) : (
                   <div className="login-prompt" style= {{textAlign: 'center'}}>
                     <p>Please sign in with Google to access your calendar</p>
                   </div>
-                )}
+                )}*/}
                 
                 {user && (
                   <div style={{textAlign: 'center', marginTop: '40%'}}>
