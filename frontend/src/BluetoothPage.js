@@ -194,68 +194,74 @@ const BluetoothPage = () => {
     log('Device disconnected');
   };
 
-// Process received data based on message format
-const processData = (data) => {
-  // Check for control messages (START, STOP, END)
-  if (data.includes('START-')) {
-    sessionStateRef.current = 'collecting';
-    log(`New data collection session started: ${data}`);
-    setCoordinates([]);
-    return;
-  }
-  
-  if (data.includes('STOP-')) {
-    sessionStateRef.current = 'waiting_for_date';
-    log(`Data collection stopped: ${data}`);
-    log(`Total coordinates received: ${coordinates.length}`);
+  const processData = (data) => {
+    // Check for control messages (START, STOP, END)
+    if (data.includes('START-')) {
+      sessionStateRef.current = 'collecting';
+      log(`New data collection session started: ${data}`);
+      setCoordinates([]);
+      return;
+    }
     
-    // Automatically update the canvas preview when STOP is received
-    updateCanvasPreview();
-    return;
-  }
-  
-  if (data.includes('DATE-')) {
-    sessionStateRef.current = 'has_date';
-    // Extract date information from format "DATE-[counter]:[month],[day]"
-    const dateContent = data.split(':')[1] || '';
-    setDateInfo(dateContent);
-    log(`Date received: ${dateContent}`);
-    return;
-  }
-  
-  if (data.includes('END-')) {
-    sessionStateRef.current = 'completed';
-    log(`Session completed: ${data}`);
-    log(`Final coordinates count: ${coordinates.length}`);
-    return;
-  }
-  
-  // Process coordinate data (format: "[counter]:[x],[y]")
-  if (sessionStateRef.current === 'collecting' && data.includes(':')) {
-    const parts = data.split(':');
-    if (parts.length === 2) {
-      const coordData = parts[1];
-      const [rawX, rawY] = coordData.split(',').map(Number);
+    if (data.includes('STOP-')) {
+      sessionStateRef.current = 'waiting_for_date';
+      log(`Data collection stopped: ${data}`);
+      log(`Total coordinates received: ${coordinates.length}`);
       
-      if (!isNaN(rawX) && !isNaN(rawY)) {
-        // Add debugging info for raw coordinates
-        log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
+      // Use setTimeout to ensure state updates have completed
+      setTimeout(() => {
+        if (coordinates.length > 0) {
+          log(`Updating preview with ${coordinates.length} coordinates after STOP signal`);
+          updateCanvasPreview();
+        } else {
+          log('No coordinates available for preview update after STOP signal');
+        }
+      }, 100);
+      return;
+    }
+    
+    if (data.includes('DATE-')) {
+      sessionStateRef.current = 'has_date';
+      // Extract date information from format "DATE-[counter]:[month],[day]"
+      const dateContent = data.split(':')[1] || '';
+      setDateInfo(dateContent);
+      log(`Date received: ${dateContent}`);
+      return;
+    }
+    
+    if (data.includes('END-')) {
+      sessionStateRef.current = 'completed';
+      log(`Session completed: ${data}`);
+      log(`Final coordinates count: ${coordinates.length}`);
+      return;
+    }
+    
+    // Process coordinate data (format: "[counter]:[x],[y]")
+    if (sessionStateRef.current === 'collecting' && data.includes(':')) {
+      const parts = data.split(':');
+      if (parts.length === 2) {
+        const coordData = parts[1];
+        const [rawX, rawY] = coordData.split(',').map(Number);
         
-        // Use the exact coordinates without scaling
-        const x = rawX;
-        const y = rawY;
-        
-        setCoordinates(prev => {
-          const newCoords = [...prev, { x, y }];
-        
-          return newCoords;
-        });
-      } else {
-        log(`Invalid coordinate data: ${coordData}`);
+        if (!isNaN(rawX) && !isNaN(rawY)) {
+          // Add debugging info for raw coordinates
+          log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
+          
+          // Use the exact coordinates without scaling
+          const x = rawX;
+          const y = rawY;
+          
+          setCoordinates(prev => {
+            const newCoords = [...prev, { x, y }];
+          
+            return newCoords;
+          });
+        } else {
+          log(`Invalid coordinate data: ${coordData}`);
+        }
       }
     }
-  }
-};
+  };
 
   // Handle data received from the BLE characteristic
   const handleDataReceived = (event) => {
