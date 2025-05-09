@@ -1018,7 +1018,7 @@ const BluetoothPage = () => {
             onClick={connectToDevice}
             disabled={connectedDevice !== null}
             style={{
-              disabled:{backgroundColor:'hsl(0, 0.00%, 84.70%)', color:'hsl(0, 0.00%, 31.80%)'},
+              backgroundColor: connectedDevice ? '#cccccc' : 'hsl(0, 0.00%, 84.70%)',
               border: '0.5px solid #1e1e1e', 
               backgroundColor: '#C5C5F1', 
               borderRadius: '30px', 
@@ -1030,11 +1030,11 @@ const BluetoothPage = () => {
         </div>  
                
       <div style={{ padding: '20px' }}>
-        <h2>Bluetooth Calendar with Vision API</h2>
-        <p><strong>Status:</strong> {status}</p>
+        {/* <h2>Bluetooth Calendar with Vision API</h2>
+        <p><strong>Status:</strong> {status}</p> */}
         
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-          <button 
+          {/* <button 
             onClick={connectToDevice}
             disabled={connectedDevice !== null}
             style={{ 
@@ -1047,7 +1047,7 @@ const BluetoothPage = () => {
             }}
           >
             Connect to Calendar Device
-          </button>
+          </button> */}
           
           <button 
             onClick={sendToVisionAPI}
@@ -1066,7 +1066,7 @@ const BluetoothPage = () => {
         </div>
         
         {/* Vision API Status */}
-        {(
+        {/* {(
           <div style={{ 
             marginBottom: '20px',
             padding: '10px',
@@ -1076,29 +1076,29 @@ const BluetoothPage = () => {
           }}>
             <strong>Vision API Status:</strong> {visionApiStatus}
           </div>
-        )}
+        )} */}
 
         {/* Data Display Section */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
           {/* Left Column - Status and Data */}
-          <div style={{ flex: '1 1 400px' }}>
-            <div>
+        {/*  <div style={{ flex: '1 1 400px' }}>
+             <div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-                {/* Current Info Panel */}
+                {/* Current Info Panel 
                 <div style={{ 
                   flex: '1 1 300px',  
                   padding: '15px',
                   backgroundColor: '#f5f5f5',
                   borderRadius: '8px',
                   marginBottom: '15px'
-                }}>
+                  }}>
                     <h3>Current Data</h3>
                     <p><strong>Last Message:</strong> {currentData || 'None'}</p>
                     <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
                     <p><strong>Session State:</strong> {sessionStateRef.current}</p>
                     <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
     
-                    {/* New Event Parsing Debug Section */}
+                    {/* New Event Parsing Debug Section 
                     {currentData && detectedText && (
                       <>
                         <h4>Event Parsing Debug</h4>
@@ -1121,13 +1121,13 @@ const BluetoothPage = () => {
                               return `Error parsing event: ${err.message}`;
                             }
                           })()}
-        </pre>
-      </>
-    )}
-  </div>
+                        </pre>
+                      </>
+                    )}
+                </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Right Column - Canvas Preview and BMP Data */}
           <div style={{ 
