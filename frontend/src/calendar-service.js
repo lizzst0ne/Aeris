@@ -247,7 +247,14 @@ export const getAccessToken = async () => {
 export const startGoogleAuthFlow = () => {
   // Google OAuth 2.0 parameters
   const clientId = '1054100119575-v32a6nj5i9dlrojhscieq8sb35pis9io.apps.googleusercontent.com';
-  const redirectUri = window.location.origin + window.location.pathname;
+  
+  // Get the current URL path for the redirect
+  // This ensures the redirect URI matches what's actually being used
+  const currentPath = window.location.pathname;
+  const redirectUri = window.location.origin + currentPath;
+  
+  console.log('Using redirect URI:', redirectUri);
+  
   const scope = 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events';
   
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
