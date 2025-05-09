@@ -7,6 +7,7 @@ import {
   createEventFromDetectedText,
   parseTextToEventDetails
 } from './calendar-service';
+const [connectedDevice, setConnectedDevice] = useState(null);
 export { connectToDevice, connectedDevice };
 
 // Google Vision API key - replace with your actual API key
