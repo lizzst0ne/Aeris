@@ -7,6 +7,7 @@ import {
   createEventFromDetectedText,
   parseTextToEventDetails
 } from './calendar-service';
+export { connectToDevice, connectedDevice };
 
 // Google Vision API key - replace with your actual API key
 const GOOGLE_VISION_API_KEY = 'AIzaSyDTKpqKc0TMHZlxtRhBW6SvMNGqTCU1_ss';
@@ -381,7 +382,7 @@ const BluetoothPage = () => {
       setStatus(`Connection failed: ${err.message}`);
     }
   };
-  module.exports.connectToDevice = connectToDevice;
+
   
   // Add a new function to force update the canvas with direct coordinates
   const updateCanvasPreview = (coordsToUse) => {

@@ -5,8 +5,7 @@ import GoogleLoginButton from './GoogleLoginButton';
 import CalendarComponent from './CalendarComponent';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import BluetoothPage from './BluetoothPage';
-import {connectToDevice} from '/BluetoothPage';
-import connectedDevice from '/BluetoothPage';
+import {connectToDevice, connectedDevice} from './BluetoothPage';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -85,15 +84,6 @@ function App() {
               <main>
                 <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
 
- {/*             {user ? (
-                  <CalendarComponent />
-                ) : (
-                  <div className="login-prompt" style= {{textAlign: 'center'}}>
-                    <p>Please sign in with Google to access your calendar</p>
-                  </div>
-                )}*/}
-                
-                {/* {user && ( */}
                   <div style={{textAlign: 'center', marginTop: '40%'}}>
                       <button 
                         onClick={connectToDevice}
@@ -108,7 +98,6 @@ function App() {
                         fontSize: '20px'
                       }}>Connect to Calendar</button>
                   </div>
-                {/* )} */}
               </main>
             }
           />
