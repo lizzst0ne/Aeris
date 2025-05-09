@@ -111,29 +111,29 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
       }
     }
     
-    // Only try to parse date from text if we don't have dateInfo from device
-    if (!eventDate) {
-      // Check for date in the format MM/DD, MM-DD or similar
-      const dateRegex = /(\d{1,2})[\/\-](\d{1,2})/;
+    // // Only try to parse date from text if we don't have dateInfo from device
+    // if (!eventDate) {
+    //   // Check for date in the format MM/DD, MM-DD or similar
+    //   const dateRegex = /(\d{1,2})[\/\-](\d{1,2})/;
       
-      // Look through lines for date patterns
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
+    //   // Look through lines for date patterns
+    //   for (let i = 1; i < lines.length; i++) {
+    //     const line = lines[i].trim();
         
-        // Check for date
-        const dateMatch = line.match(dateRegex);
-        if (dateMatch && !eventDate) {
-          const month = parseInt(dateMatch[1]);
-          const day = parseInt(dateMatch[2]);
-          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-            // Use current year for the date
-            const currentYear = new Date().getFullYear();
-            eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-            console.log(`Parsed date from text: ${month}/${day} -> ${eventDate}`);
-          }
-        }
-      }
-    }
+    //     // Check for date
+    //     const dateMatch = line.match(dateRegex);
+    //     if (dateMatch && !eventDate) {
+    //       const month = parseInt(dateMatch[1]);
+    //       const day = parseInt(dateMatch[2]);
+    //       if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+    //         // Use current year for the date
+    //         const currentYear = new Date().getFullYear();
+    //         eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    //         console.log(`Parsed date from text: ${month}/${day} -> ${eventDate}`);
+    //       }
+    //     }
+    //   }
+    // }
     
     // Look for time in the text (regardless of where we got the date from)
     // Check for time in the format HH:MM AM/PM or 24hr
