@@ -172,7 +172,8 @@ export const connectToDevice = async () => {
         optionalServices: [CALENDAR_SERVICE_UUID]
       });
       
-      setConnectedDevice(device);
+      window.connectedDevice = device;
+      // setConnectedDevice(device);
       setStatus('Connecting...');
       log('Connecting to GATT server...');
 
@@ -237,7 +238,8 @@ export const setupNotifications = async (characteristic) => {
 
 export const handleDisconnection = () => {
     setStatus('Disconnected');
-    setConnectedDevice(null);
+    window.connectedDevice = null;
+    // setConnectedDevice(null);
     dataCharRef.current = null;
     setCurrentData(null);
     sessionStateRef.current = 'idle';
