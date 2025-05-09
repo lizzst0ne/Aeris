@@ -165,10 +165,10 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
       }
     }
     
-    // Create description from all non-title lines
-    if (lines.length > 1) {
-      description = lines.slice(1).join('\n');
-    }
+    // // Create description from all non-title lines
+    // if (lines.length > 1) {
+    //   description = lines.slice(1).join('\n');
+    // }
     
     // Default to today if no date detected
     if (!eventDate) {
