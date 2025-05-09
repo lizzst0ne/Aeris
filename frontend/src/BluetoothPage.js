@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { verifyToken, createCalendarEvent } from './calendar-service';
 
 // Google Vision API key - replace with your actual API key
 const GOOGLE_VISION_API_KEY = 'AIzaSyDTKpqKc0TMHZlxtRhBW6SvMNGqTCU1_ss';
@@ -154,6 +155,112 @@ const canvasToBMP = (canvas) => {
   return new Blob([buffer], { type: 'image/bmp' });
 };
 
+// Function to parse detected text into calendar event details
+const parseTextToEventDetails = (text, dateInfo) => {
+  if (!text || text === 'No text detected') {
+    return null;
+  }
+  
+  try {
+    // Simple parsing logic - can be enhanced based on your text format
+    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    
+    if (lines.length === 0) return null;
+    
+    // Use the first line as the event title
+    const title = lines[0].trim();
+    
+    // Try to find date/time information in the text
+    // This is a simple implementation and might need adjustment based on your handwriting format
+    let eventDate = null;
+    let eventTime = null;
+    let description = '';
+    
+    // Check for date in the format MM/DD, MM-DD or similar
+    const dateRegex = /(\d{1,2})[\/\-](\d{1,2})/;
+    // Check for time in the format HH:MM AM/PM or 24hr
+    const timeRegex = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i;
+    
+    // Look through lines for date and time patterns
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Check for date
+      const dateMatch = line.match(dateRegex);
+      if (dateMatch && !eventDate) {
+        const month = parseInt(dateMatch[1]);
+        const day = parseInt(dateMatch[2]);
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          // Use current year for the date
+          const currentYear = new Date().getFullYear();
+          eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        }
+      }
+      
+      // Check for time
+      const timeMatch = line.match(timeRegex);
+      if (timeMatch && !eventTime) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+        
+        // Convert to 24-hour format if AM/PM is specified
+        if (ampm === 'PM' && hours < 12) {
+          hours += 12;
+        } else if (ampm === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+      }
+      
+      // Add all non-title lines to description
+      if (i > 0) {
+        description += (description ? '\n' : '') + line;
+      }
+    }
+    
+    // Use dateInfo from the device if available and no date detected in text
+    if (!eventDate && dateInfo) {
+      const [month, day] = dateInfo.split(',').map(Number);
+      if (!isNaN(month) && !isNaN(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const currentYear = new Date().getFullYear();
+        eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      }
+    }
+    
+    // Default to today if no date detected
+    if (!eventDate) {
+      const today = new Date();
+      eventDate = today.toISOString().split('T')[0];
+    }
+    
+    // Default time if none detected
+    if (!eventTime) {
+      eventTime = '12:00:00'; // Default to noon
+    }
+    
+    // Create start and end times (1 hour duration by default)
+    const startDateTime = new Date(`${eventDate}T${eventTime}`);
+    const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Add 1 hour
+    
+    return {
+      summary: title,
+      description: description,
+      start: {
+        dateTime: startDateTime.toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      },
+      end: {
+        dateTime: endDateTime.toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }
+    };
+  } catch (err) {
+    console.error('Error parsing text to event:', err);
+    return null;
+  }
+};
 
 const BluetoothPage = () => {
   const [status, setStatus] = useState('Not Connected');
@@ -172,11 +279,20 @@ const BluetoothPage = () => {
   const [visionApiResults, setVisionApiResults] = useState(null);
   const [isSubmittingToVision, setIsSubmittingToVision] = useState(false);
   
+  // New states for Calendar integration
+  const [detectedText, setDetectedText] = useState('');
+  const [accessToken, setAccessToken] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [eventDetails, setEventDetails] = useState(null);
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const [calendarStatus, setCalendarStatus] = useState('Not created');
+  
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
   const lastValueRef = useRef('');
   const sessionStateRef = useRef('idle'); // idle, collecting, completed
   const canvasRef = useRef(null);
+  const coordinatesRef = useRef([]);
 
   // Helper for adding to debug log
   const log = (msg) => {
@@ -197,81 +313,78 @@ const BluetoothPage = () => {
     log('Device disconnected');
   };
 
-// Add this to your existing refs
-const coordinatesRef = useRef([]);
-
-// Modify your processData function to use the ref directly
-const processData = (data) => {
-  // Check for control messages (START, STOP, END)
-  if (data.includes('START-')) {
-    sessionStateRef.current = 'collecting';
-    log(`New data collection session started: ${data}`);
-    // Clear both the state and the ref
-    coordinatesRef.current = [];
-    setCoordinates([]);
-    return;
-  }
-  
-  if (data.includes('STOP-')) {
-    sessionStateRef.current = 'waiting_for_date';
-    log(`Data collection stopped: ${data}`);
-    log(`Total coordinates received: ${coordinatesRef.current.length}`);
-    
-    // Directly update the preview using the coordinates from the ref
-    if (coordinatesRef.current.length > 0) {
-      log(`Forcing preview update with ${coordinatesRef.current.length} points`);
-      updateCanvasPreview(coordinatesRef.current);
-    } else {
-      log('No coordinates available to display preview');
+  // Process data received from the BLE device
+  const processData = (data) => {
+    // Check for control messages (START, STOP, END)
+    if (data.includes('START-')) {
+      sessionStateRef.current = 'collecting';
+      log(`New data collection session started: ${data}`);
+      // Clear both the state and the ref
+      coordinatesRef.current = [];
+      setCoordinates([]);
+      return;
     }
-    return;
-  }
-  
-  if (data.includes('DATE-')) {
-    sessionStateRef.current = 'has_date';
-    // Extract date information from format "DATE-[counter]:[month],[day]"
-    const dateContent = data.split(':')[1] || '';
-    setDateInfo(dateContent);
-    log(`Date received: ${dateContent}`);
-    return;
-  }
-  
-  if (data.includes('END-')) {
-    sessionStateRef.current = 'completed';
-    log(`Session completed: ${data}`);
-    log(`Final coordinates count: ${coordinatesRef.current.length}`);
-    return;
-  }
-  
-  // Process coordinate data (format: "[counter]:[x],[y]")
-  if (sessionStateRef.current === 'collecting' && data.includes(':')) {
-    const parts = data.split(':');
-    if (parts.length === 2) {
-      const coordData = parts[1];
-      const [rawX, rawY] = coordData.split(',').map(Number);
+    
+    if (data.includes('STOP-')) {
+      sessionStateRef.current = 'waiting_for_date';
+      log(`Data collection stopped: ${data}`);
+      log(`Total coordinates received: ${coordinatesRef.current.length}`);
       
-      if (!isNaN(rawX) && !isNaN(rawY)) {
-        // Add debugging info for raw coordinates
-        log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
-        
-        // Use the exact coordinates without scaling
-        const x = rawX;
-        const y = rawY;
-        
-        // Update both the ref and the state
-        const newCoord = { x, y };
-        coordinatesRef.current = [...coordinatesRef.current, newCoord];
-        
-        setCoordinates(prev => {
-          const newCoords = [...prev, newCoord];
-          return newCoords;
-        });
+      // Directly update the preview using the coordinates from the ref
+      if (coordinatesRef.current.length > 0) {
+        log(`Forcing preview update with ${coordinatesRef.current.length} points`);
+        updateCanvasPreview(coordinatesRef.current);
       } else {
-        log(`Invalid coordinate data: ${coordData}`);
+        log('No coordinates available to display preview');
+      }
+      return;
+    }
+    
+    if (data.includes('DATE-')) {
+      sessionStateRef.current = 'has_date';
+      // Extract date information from format "DATE-[counter]:[month],[day]"
+      const dateContent = data.split(':')[1] || '';
+      setDateInfo(dateContent);
+      log(`Date received: ${dateContent}`);
+      return;
+    }
+    
+    if (data.includes('END-')) {
+      sessionStateRef.current = 'completed';
+      log(`Session completed: ${data}`);
+      log(`Final coordinates count: ${coordinatesRef.current.length}`);
+      return;
+    }
+    
+    // Process coordinate data (format: "[counter]:[x],[y]")
+    if (sessionStateRef.current === 'collecting' && data.includes(':')) {
+      const parts = data.split(':');
+      if (parts.length === 2) {
+        const coordData = parts[1];
+        const [rawX, rawY] = coordData.split(',').map(Number);
+        
+        if (!isNaN(rawX) && !isNaN(rawY)) {
+          // Add debugging info for raw coordinates
+          log(`Raw coordinate received: x=${rawX}, y=${rawY}`);
+          
+          // Use the exact coordinates without scaling
+          const x = rawX;
+          const y = rawY;
+          
+          // Update both the ref and the state
+          const newCoord = { x, y };
+          coordinatesRef.current = [...coordinatesRef.current, newCoord];
+          
+          setCoordinates(prev => {
+            const newCoords = [...prev, newCoord];
+            return newCoords;
+          });
+        } else {
+          log(`Invalid coordinate data: ${coordData}`);
+        }
       }
     }
-  }
-};
+  };
 
   // Handle data received from the BLE characteristic
   const handleDataReceived = (event) => {
@@ -365,193 +478,266 @@ const processData = (data) => {
     }
   };
 
-// Add a new function to force update the canvas with direct coordinates
-const updateCanvasPreview = (coordsToUse) => {
-  if (!coordsToUse || coordsToUse.length === 0) {
-    log('No coordinates provided to force update preview');
-    return;
-  }
-  
-  try {
-    log(`Forcing preview update with ${coordsToUse.length} points`);
-    
-    // Log some coordinate samples for debugging
-    if (coordsToUse.length > 0) {
-      log(`First coordinate: (${coordsToUse[0].x}, ${coordsToUse[0].y})`);
-      if (coordsToUse.length > 1) {
-        const lastIdx = coordsToUse.length - 1;
-        log(`Last coordinate: (${coordsToUse[lastIdx].x}, ${coordsToUse[lastIdx].y})`);
-      }
+  // Add a new function to force update the canvas with direct coordinates
+  const updateCanvasPreview = (coordsToUse) => {
+    if (!coordsToUse || coordsToUse.length === 0) {
+      log('No coordinates provided to force update preview');
+      return;
     }
     
-    // Get min/max values for logging
-    const xs = coordsToUse.map(coord => coord.x);
-    const ys = coordsToUse.map(coord => coord.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    
-    log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
-    
-    // Use auto-sizing with padding of 20px and specified point size
-    const padding = 20;
-    const result = createBMPFile(coordsToUse, padding, POINT_SIZE);
-    
-    // Update state with the new canvas info
-    setCanvasPreview(result.previewUrl);
-    setBmpData(result.bmpBlob);
-    
-    // Update the width/height state to match what was actually used
-    setImageWidth(result.canvas.width);
-    setImageHeight(result.canvas.height);
-    
-    log(`Canvas preview force updated with auto-sized dimensions: ${result.canvas.width}x${result.canvas.height}`);
-  } catch (err) {
-    log(`Error forcing canvas preview update: ${err.message}`);
-    console.error("Preview update error:", err);
-  }
-};
-// Update canvas preview with point drawing
-
-// const updateCanvasPreview = () => {
-//   if (coordinates.length === 0) {
-//     log('No coordinates to update preview');
-//     return;
-//   }
-  
-//   try {
-//     log(`Updating preview with ${coordinates.length} points using point drawing (size: ${pointSize}px)`);
-    
-//     // Log some coordinate samples for debugging
-//     if (coordinates.length > 0) {
-//       log(`First coordinate: (${coordinates[0].x}, ${coordinates[0].y})`);
-//       if (coordinates.length > 1) {
-//         const lastIdx = coordinates.length - 1;
-//         log(`Last coordinate: (${coordinates[lastIdx].x}, ${coordinates[lastIdx].y})`);
-//       }
-//     }
-    
-//     // Get min/max values for logging
-//     const xs = coordinates.map(coord => coord.x);
-//     const ys = coordinates.map(coord => coord.y);
-//     const minX = Math.min(...xs);
-//     const maxX = Math.max(...xs);
-//     const minY = Math.min(...ys);
-//     const maxY = Math.max(...ys);
-    
-//     log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
-    
-//     // Use auto-sizing with padding of 20px and specified point size
-//     const padding = 20;
-//     const result = createBMPFile(coordinates, padding, pointSize);
-    
-//     // Update state with the new canvas info
-//     setCanvasPreview(result.previewUrl);
-//     setBmpData(result.bmpBlob);
-    
-//     // Update the width/height state to match what was actually used
-//     setImageWidth(result.canvas.width);
-//     setImageHeight(result.canvas.height);
-    
-//     log(`Canvas preview updated with auto-sized dimensions: ${result.canvas.width}x${result.canvas.height}`);
-//   } catch (err) {
-//     log(`Error updating canvas preview: ${err.message}`);
-//     console.error("Preview update error:", err);
-//   }
-// };
-
-// Function to convert blob to base64
-const blobToBase64 = (blob) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      // Get the base64 part after the comma: data:image/bmp;base64,BASE64_DATA
-      const base64String = reader.result.split(',')[1];
-      resolve(base64String);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-};
-
-// Send image to Google Vision API for text recognition
-const sendToVisionAPI = async () => {
-  if (!bmpData) {
-    log('No BMP data available to send to Vision API');
-    return;
-  }
-
-  try {
-    setVisionApiStatus('Sending to Vision API...');
-    setIsSubmittingToVision(true);
-    log('Preparing image data for Vision API...');
-
-    // Convert BMP blob to base64
-    const base64Image = await blobToBase64(bmpData);
-    log(`Image converted to base64 (${Math.floor(base64Image.length / 1024)}KB)`);
-
-    // Prepare the request
-    const visionRequest = {
-      requests: [
-        {
-          image: {
-            content: base64Image
-          },
-          features: [
-            {
-              type: 'TEXT_DETECTION',
-              maxResults: 10
-            },
-            {
-              type: 'DOCUMENT_TEXT_DETECTION',
-              maxResults: 10
-            }
-          ]
+    try {
+      log(`Forcing preview update with ${coordsToUse.length} points`);
+      
+      // Log some coordinate samples for debugging
+      if (coordsToUse.length > 0) {
+        log(`First coordinate: (${coordsToUse[0].x}, ${coordsToUse[0].y})`);
+        if (coordsToUse.length > 1) {
+          const lastIdx = coordsToUse.length - 1;
+          log(`Last coordinate: (${coordsToUse[lastIdx].x}, ${coordsToUse[lastIdx].y})`);
         }
-      ]
-    };
-
-    log('Sending request to Vision API...');
-    const response = await fetch(
-      `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(visionRequest)
       }
-    );
+      
+      // Get min/max values for logging
+      const xs = coordsToUse.map(coord => coord.x);
+      const ys = coordsToUse.map(coord => coord.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      
+      log(`Coordinate range: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+      
+      // Use auto-sizing with padding of 20px and specified point size
+      const padding = 20;
+      const result = createBMPFile(coordsToUse, padding, POINT_SIZE);
+      
+      // Update state with the new canvas info
+      setCanvasPreview(result.previewUrl);
+      setBmpData(result.bmpBlob);
+      
+      // Update the width/height state to match what was actually used
+      setImageWidth(result.canvas.width);
+      setImageHeight(result.canvas.height);
+      
+      log(`Canvas preview force updated with auto-sized dimensions: ${result.canvas.width}x${result.canvas.height}`);
+    } catch (err) {
+      log(`Error forcing canvas preview update: ${err.message}`);
+      console.error("Preview update error:", err);
+    }
+  };
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API request failed: ${response.status} - ${errorText}`);
+  // Function to convert blob to base64
+  const blobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Get the base64 part after the comma: data:image/bmp;base64,BASE64_DATA
+        const base64String = reader.result.split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Send image to Google Vision API for text recognition
+  const sendToVisionAPI = async () => {
+    if (!bmpData) {
+      log('No BMP data available to send to Vision API');
+      return;
     }
 
-    const data = await response.json();
-    log('Response received from Vision API');
+    try {
+      setVisionApiStatus('Sending to Vision API...');
+      setIsSubmittingToVision(true);
+      log('Preparing image data for Vision API...');
 
-    // Process and display results
-    setVisionApiResults(data);
-    setVisionApiStatus('Results received');
-    
-    // Extract the detected text for easy display
-    const detectedText = data.responses[0]?.fullTextAnnotation?.text || 
-                         'No text detected';
-    
-    log(`Detected text: ${detectedText.substring(0, 100)}${detectedText.length > 100 ? '...' : ''}`);
-    
-  } catch (err) {
-    log(`Vision API Error: ${err.message}`);
-    setVisionApiStatus(`Error: ${err.message}`);
-  } finally {
-    setIsSubmittingToVision(false);
-  }
-};
+      // Convert BMP blob to base64
+      const base64Image = await blobToBase64(bmpData);
+      log(`Image converted to base64 (${Math.floor(base64Image.length / 1024)}KB)`);
 
-  // Clean up resources when component unmounts
+      // Prepare the request
+      const visionRequest = {
+        requests: [
+          {
+            image: {
+              content: base64Image
+            },
+            features: [
+              {
+                type: 'TEXT_DETECTION',
+                maxResults: 10
+              },
+              {
+                type: 'DOCUMENT_TEXT_DETECTION',
+                maxResults: 10
+              }
+            ]
+          }
+        ]
+      };
+
+      log('Sending request to Vision API...');
+      const response = await fetch(
+        `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(visionRequest)
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      log('Response received from Vision API');
+
+      // Process and display results
+      setVisionApiResults(data);
+      setVisionApiStatus('Results received');
+      
+      // Extract the detected text for easy display
+      const text = data.responses[0]?.fullTextAnnotation?.text || 'No text detected';
+      setDetectedText(text);
+      
+      log(`Detected text: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`);
+      
+      // Parse text into event details
+      const parsedEventDetails = parseTextToEventDetails(text, dateInfo);
+      if (parsedEventDetails) {
+        setEventDetails(parsedEventDetails);
+        log(`Event details parsed: ${parsedEventDetails.summary}`);
+      } else {
+        log('Could not parse event details from text');
+      }
+      
+    } catch (err) {
+      log(`Vision API Error: ${err.message}`);
+      setVisionApiStatus(`Error: ${err.message}`);
+    } finally {
+      setIsSubmittingToVision(false);
+    }
+  };
+
+  // Google Calendar Authentication
+  const handleGoogleAuth = async () => {
+    try {
+      log('Starting Google Authentication...');
+      
+      // Google OAuth 2.0 parameters
+      const clientId = '1054100119575-v32a6nj5i9dlrojhscieq8sb35pis9io.apps.googleusercontent.com'; // Add your Google API client ID
+      const redirectUri = window.location.origin + window.location.pathname;
+      const scope = 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events';
+      
+      // Check if we have a token in URL fragment (returned after auth)
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const token = params.get('access_token');
+      
+      if (token) {
+        // Token found in URL, use it
+        log('Found token in URL');
+        setAccessToken(token);
+        
+        // Verify the token
+        const tokenInfo = await verifyToken(token);
+        if (tokenInfo.valid) {
+          setIsAuthenticated(true);
+          log(`Authentication successful! Token expires in ${tokenInfo.expiresIn} seconds`);
+          
+          // Remove the token from the URL for security
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          return token;
+        } else {
+          log('Token verification failed: ' + (tokenInfo.error || 'Unknown error'));
+          setIsAuthenticated(false);
+        }
+      } else {
+        // No token, initiate auth flow
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+          `client_id=${clientId}` +
+          `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+          `&response_type=token` +
+          `&scope=${encodeURIComponent(scope)}` +
+          `&prompt=consent`;
+        
+        log('Redirecting to Google Auth...');
+        window.location.href = authUrl;
+      }
+    } catch (err) {
+      log(`Authentication error: ${err.message}`);
+      setIsAuthenticated(false);
+    }
+    
+    return null;
+  };
+
+  // Create calendar event 
+  const createEvent = async () => {
+    if (!detectedText || !isAuthenticated || !accessToken) {
+      log('Cannot create event: Missing text data or authentication');
+      return;
+    }
+    
+    try {
+      // If no parsed event details yet, try to parse them
+      if (!eventDetails) {
+        const parsedEventDetails = parseTextToEventDetails(detectedText, dateInfo);
+        if (!parsedEventDetails) {
+          log('Failed to parse event details from text');
+          setCalendarStatus('Failed to parse event details');
+          return;
+        }
+        setEventDetails(parsedEventDetails);
+      }
+      
+      setIsCreatingEvent(true);
+      setCalendarStatus('Creating event...');
+      log(`Creating calendar event: "${eventDetails.summary}"`);
+      
+      // Call the calendar service to create the event
+      const result = await createCalendarEvent(accessToken, eventDetails);
+      
+      log('Event created successfully!');
+      setCalendarStatus('Event created successfully!');
+      console.log('Created event:', result);
+      
+    } catch (err) {
+      log(`Error creating calendar event: ${err.message}`);
+      setCalendarStatus(`Error: ${err.message}`);
+    } finally {
+      setIsCreatingEvent(false);
+    }
+  };
+
+  // Check for authentication token on component mount
   useEffect(() => {
+    // Check if we have a token in URL from Google Auth redirect
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const token = params.get('access_token');
+    
+    if (token) {
+      setAccessToken(token);
+      verifyToken(token).then(tokenInfo => {
+        if (tokenInfo.valid) {
+          setIsAuthenticated(true);
+          log('Authentication token found and verified');
+          
+          // Remove the token from the URL for security
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }).catch(err => {
+        log(`Token verification error: ${err.message}`);
+      });
+    }
+    
     return () => {
       // Clean up notification listener if characteristic exists
       if (dataCharRef.current) {
@@ -569,7 +755,7 @@ const sendToVisionAPI = async () => {
         connectedDevice.gatt.disconnect();
       }
     };
-  }, [connectedDevice]);
+  }, []);
 
   // Display formatted Vision API results
   const renderVisionResults = () => {
@@ -600,21 +786,6 @@ const sendToVisionAPI = async () => {
           </div>
         ) : (
           <p>No text detected in the image</p>
-        )}
-        
-        {textAnnotations.length > 0 && (
-          <div>
-            <h4>Text Elements ({textAnnotations.length - 1}):</h4>
-            <ul style={{ 
-              maxHeight: '200px', 
-              overflowY: 'auto',
-              padding: '0 0 0 20px'
-            }}>
-              {textAnnotations.slice(1).map((item, idx) => (
-                <li key={idx}>"{item.description}" (Confidence: {(item.score * 100 || 0).toFixed(2)}%)</li>
-              ))}
-            </ul>
-          </div>
         )}
       </div>
     );
