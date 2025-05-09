@@ -1018,9 +1018,8 @@ const BluetoothPage = () => {
             onClick={connectToDevice}
             disabled={connectedDevice !== null}
             style={{
-              backgroundColor: connectedDevice ? '#cccccc' : 'hsl(0, 0.00%, 84.70%)',
+              backgroundColor: connectedDevice ? '#C5C5F1' : 'hsl(0, 0.00%, 84.70%)',
               border: '0.5px solid #1e1e1e', 
-              backgroundColor: '#C5C5F1', 
               borderRadius: '30px', 
               width: '200px', 
               height: '75px',
