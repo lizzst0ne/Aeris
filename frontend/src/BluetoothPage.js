@@ -7,6 +7,9 @@ const GOOGLE_VISION_API_KEY = 'AIzaSyDTKpqKc0TMHZlxtRhBW6SvMNGqTCU1_ss';
 const CALENDAR_SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
 const CALENDAR_DATA_CHAR_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
 
+//point size of the drawing
+const POINT_SIZE = 3;
+
 // Helper function to visualize data points
 const formatCoordinateData = (coords) => {
   if (!coords || coords.length === 0) return "No data collected";
@@ -217,7 +220,7 @@ const processData = (data) => {
     // Directly update the preview using the coordinates from the ref
     if (coordinatesRef.current.length > 0) {
       log(`Forcing preview update with ${coordinatesRef.current.length} points`);
-      forceUpdateCanvasPreview(coordinatesRef.current);
+      updateCanvasPreview(coordinatesRef.current);
     } else {
       log('No coordinates available to display preview');
     }
@@ -348,19 +351,16 @@ const processData = (data) => {
       setStatus(`Connection failed: ${err.message}`);
     }
   };
-  
-// Add point size to state
-const [pointSize, setPointSize] = useState(3);
 
 // Add a new function to force update the canvas with direct coordinates
-const forceUpdateCanvasPreview = (coordsToUse) => {
+const updateCanvasPreview = (coordsToUse) => {
   if (!coordsToUse || coordsToUse.length === 0) {
     log('No coordinates provided to force update preview');
     return;
   }
   
   try {
-    log(`Forcing preview update with ${coordsToUse.length} points using point drawing (size: ${pointSize}px)`);
+    log(`Forcing preview update with ${coordsToUse.length} points`);
     
     // Log some coordinate samples for debugging
     if (coordsToUse.length > 0) {
@@ -383,7 +383,7 @@ const forceUpdateCanvasPreview = (coordsToUse) => {
     
     // Use auto-sizing with padding of 20px and specified point size
     const padding = 20;
-    const result = createBMPFile(coordsToUse, padding, pointSize);
+    const result = createBMPFile(coordsToUse, padding, POINT_SIZE);
     
     // Update state with the new canvas info
     setCanvasPreview(result.previewUrl);
@@ -400,10 +400,6 @@ const forceUpdateCanvasPreview = (coordsToUse) => {
   }
 };
 // Update canvas preview with point drawing
-// Keep the original updateCanvasPreview function for manual updates if needed
-const updateCanvasPreview = () => {
-  forceUpdateCanvasPreview(coordinates);
-};
 
 // const updateCanvasPreview = () => {
 //   if (coordinates.length === 0) {
@@ -661,53 +657,7 @@ const sendToVisionAPI = async () => {
           <strong>Vision API Status:</strong> {visionApiStatus}
         </div>
       )}
-
-      {/* Image Settings Display with Point Size Control */}
-      <div style={{ 
-        marginBottom: '20px',
-        padding: '15px',
-        backgroundColor: '#f0f0f0',
-        borderRadius: '8px',
-        maxWidth: '500px'
-      }}>
-        <h3 style={{ marginTop: 0 }}>BMP Settings (Auto-sized)</h3>
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Current Width:</label>
-            <span style={{ padding: '5px', fontWeight: 'bold' }}>{imageWidth}px</span>
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Current Height:</label>
-            <span style={{ padding: '5px', fontWeight: 'bold' }}>{imageHeight}px</span>
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Point Size:</label>
-            <input 
-              type="number" 
-              value={pointSize} 
-              onChange={(e) => setPointSize(Math.max(1, Number(e.target.value)))}
-              min="1"
-              max="10"
-              style={{ padding: '5px', width: '60px' }}
-            />
-          </div>
-          {/* <button 
-            onClick={updateCanvasPreview}
-            disabled={coordinates.length === 0}
-            style={{ 
-              padding: '8px 16px',
-              backgroundColor: '#607D8B',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: coordinates.length === 0 ? 'default' : 'pointer'
-            }}
-          >
-            Update Preview
-          </button> */}
-        </div>
-      </div>
-
+      
       {/* Data Display Section */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
         {/* Left Column - Status and Data */}
