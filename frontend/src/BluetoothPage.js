@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { verifyToken, createCalendarEvent } from './calendar-service';
+import { 
+  verifyToken, 
+  createCalendarEvent, 
+  getAccessToken, 
+  startGoogleAuthFlow,
+  createEventFromDetectedText
+} from './calendar-service';
 
 // Google Vision API key - replace with your actual API key
 const GOOGLE_VISION_API_KEY = 'AIzaSyDTKpqKc0TMHZlxtRhBW6SvMNGqTCU1_ss';
@@ -69,11 +75,10 @@ const createBMPFile = (coordinates, padding = 10, pointSize = 3) => {
     const x = coord.x - minX + padding;
     const y = coord.y - minY + padding;
     
-      //Draw as circle
-      ctx.beginPath();
-      ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
-      ctx.fill();
-
+    //Draw as circle
+    ctx.beginPath();
+    ctx.arc(x, y, pointSize / 2, 0, Math.PI * 2);
+    ctx.fill();
   });
 
   // Return both the canvas and the BMP data
@@ -155,113 +160,6 @@ const canvasToBMP = (canvas) => {
   return new Blob([buffer], { type: 'image/bmp' });
 };
 
-// Function to parse detected text into calendar event details
-const parseTextToEventDetails = (text, dateInfo) => {
-  if (!text || text === 'No text detected') {
-    return null;
-  }
-  
-  try {
-    // Simple parsing logic - can be enhanced based on your text format
-    const lines = text.split('\n').filter(line => line.trim().length > 0);
-    
-    if (lines.length === 0) return null;
-    
-    // Use the first line as the event title
-    const title = lines[0].trim();
-    
-    // Try to find date/time information in the text
-    // This is a simple implementation and might need adjustment based on your handwriting format
-    let eventDate = null;
-    let eventTime = null;
-    let description = '';
-    
-    // Check for date in the format MM/DD, MM-DD or similar
-    const dateRegex = /(\d{1,2})[\/\-](\d{1,2})/;
-    // Check for time in the format HH:MM AM/PM or 24hr
-    const timeRegex = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i;
-    
-    // Look through lines for date and time patterns
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      // Check for date
-      const dateMatch = line.match(dateRegex);
-      if (dateMatch && !eventDate) {
-        const month = parseInt(dateMatch[1]);
-        const day = parseInt(dateMatch[2]);
-        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-          // Use current year for the date
-          const currentYear = new Date().getFullYear();
-          eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-        }
-      }
-      
-      // Check for time
-      const timeMatch = line.match(timeRegex);
-      if (timeMatch && !eventTime) {
-        let hours = parseInt(timeMatch[1]);
-        const minutes = parseInt(timeMatch[2]);
-        const ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
-        
-        // Convert to 24-hour format if AM/PM is specified
-        if (ampm === 'PM' && hours < 12) {
-          hours += 12;
-        } else if (ampm === 'AM' && hours === 12) {
-          hours = 0;
-        }
-        
-        eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-      }
-      
-      // Add all non-title lines to description
-      if (i > 0) {
-        description += (description ? '\n' : '') + line;
-      }
-    }
-    
-    // Use dateInfo from the device if available and no date detected in text
-    if (!eventDate && dateInfo) {
-      const [month, day] = dateInfo.split(',').map(Number);
-      if (!isNaN(month) && !isNaN(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-        const currentYear = new Date().getFullYear();
-        eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-      }
-    }
-    
-    // Default to today if no date detected
-    if (!eventDate) {
-      const today = new Date();
-      eventDate = today.toISOString().split('T')[0];
-    }
-    
-    // Default time if none detected
-    if (!eventTime) {
-      eventTime = '12:00:00'; // Default to noon
-    }
-    
-    // Create start and end times (1 hour duration by default)
-    const startDateTime = new Date(`${eventDate}T${eventTime}`);
-    const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Add 1 hour
-    
-    return {
-      summary: title,
-      description: description,
-      start: {
-        dateTime: startDateTime.toISOString(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      },
-      end: {
-        dateTime: endDateTime.toISOString(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      }
-    };
-  } catch (err) {
-    console.error('Error parsing text to event:', err);
-    return null;
-  }
-};
-
 const BluetoothPage = () => {
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
@@ -279,7 +177,7 @@ const BluetoothPage = () => {
   const [visionApiResults, setVisionApiResults] = useState(null);
   const [isSubmittingToVision, setIsSubmittingToVision] = useState(false);
   
-  // New states for Calendar integration
+  // States for Calendar integration
   const [detectedText, setDetectedText] = useState('');
   const [accessToken, setAccessToken] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -289,6 +187,7 @@ const BluetoothPage = () => {
   const [createdEvent, setCreatedEvent] = useState(null);
   const [eventCreationError, setEventCreationError] = useState(null);
   const [showEventConfirmation, setShowEventConfirmation] = useState(false);
+  const [autoCreateEvent, setAutoCreateEvent] = useState(true); // New state for auto-creation toggle
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
@@ -610,11 +509,45 @@ const BluetoothPage = () => {
       
       log(`Detected text: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`);
       
-      // Parse text into event details
+      // Log dateInfo if available
+      if (dateInfo) {
+        log(`Using date info from Bluetooth device: ${dateInfo}`);
+      } else {
+        log('No date info available from Bluetooth device, will use date from text or default to today');
+      }
+      
+      // Parse text into event details, prioritizing dateInfo from Bluetooth
       const parsedEventDetails = parseTextToEventDetails(text, dateInfo);
       if (parsedEventDetails) {
         setEventDetails(parsedEventDetails);
         log(`Event details parsed: ${parsedEventDetails.summary}`);
+        log(`Event date: ${new Date(parsedEventDetails.start.dateTime).toLocaleDateString()}`);
+        log(`Event time: ${new Date(parsedEventDetails.start.dateTime).toLocaleTimeString()}`);
+        
+        // Auto-create event if enabled and user is authenticated
+        if (autoCreateEvent) {
+          // Check authentication first
+          const { token, isValid } = await getAccessToken();
+          
+          if (token && isValid) {
+            log('Auto-creating calendar event...');
+            
+            // First set authentication state (for UI feedback)
+            setAccessToken(token);
+            setIsAuthenticated(true);
+            
+            // Then create the event automatically
+            await createEvent();
+          } else {
+            log('Authentication required for auto-creating calendar event');
+            setCalendarStatus('Authentication required');
+            // Store event details for later creation after auth
+            setEventDetails(parsedEventDetails);
+            
+            // Prompt for authentication
+            handleGoogleAuth();
+          }
+        }
       } else {
         log('Could not parse event details from text');
       }
@@ -627,56 +560,41 @@ const BluetoothPage = () => {
     }
   };
 
-  // Google Calendar Authentication
+  // Google Calendar Authentication - UPDATED to use calendar-service.js
   const handleGoogleAuth = async () => {
     try {
       log('Starting Google Authentication...');
-      
-      // Google OAuth 2.0 parameters
-      const clientId = '1054100119575-v32a6nj5i9dlrojhscieq8sb35pis9io.apps.googleusercontent.com';
-      const redirectUri = window.location.origin + window.location.pathname;
-      const scope = 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events';
-      
-      // Clear any previous errors
       setEventCreationError(null);
       
-      // Check if we have a token in URL fragment (returned after auth)
-      const hash = window.location.hash.substring(1);
-      const params = new URLSearchParams(hash);
-      const token = params.get('access_token');
+      // Check if we already have a token
+      const { token, isValid, error } = await getAccessToken();
       
-      if (token) {
-        // Token found in URL, use it
-        log('Found token in URL');
+      if (token && isValid) {
+        // Token found and valid
+        log('Found valid token');
         setAccessToken(token);
+        setIsAuthenticated(true);
+        log('Authentication successful!');
         
-        // Verify the token
-        const tokenInfo = await verifyToken(token);
-        if (tokenInfo.valid) {
-          setIsAuthenticated(true);
-          log(`Authentication successful! Token expires in ${tokenInfo.expiresIn} seconds`);
-          
-          // Remove the token from the URL for security
-          window.history.replaceState({}, document.title, window.location.pathname);
-          
-          return token;
-        } else {
-          const errorMsg = tokenInfo.error || 'Unknown error';
-          log('Token verification failed: ' + errorMsg);
-          setEventCreationError(`Auth error: ${errorMsg}`);
-          setIsAuthenticated(false);
+        // If we have event details waiting, create the event
+        if (eventDetails && autoCreateEvent) {
+          log('Creating pending event now that we are authenticated');
+          await createEvent();
         }
-      } else {
-        // No token, initiate auth flow
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-          `client_id=${clientId}` +
-          `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-          `&response_type=token` +
-          `&scope=${encodeURIComponent(scope)}` +
-          `&prompt=consent`;
         
-        log('Redirecting to Google Auth...');
-        window.location.href = authUrl;
+        return token;
+      } else if (token) {
+        // Token found but invalid
+        log(`Token invalid: ${error}`);
+        setEventCreationError(`Auth error: ${error}`);
+        setIsAuthenticated(false);
+        
+        // Start new auth flow
+        startGoogleAuthFlow();
+      } else {
+        // No token, start new auth flow
+        log('No token found, starting auth flow');
+        startGoogleAuthFlow();
       }
     } catch (err) {
       const errorMsg = err.message || 'Unknown error';
@@ -688,13 +606,11 @@ const BluetoothPage = () => {
     return null;
   };
 
-  // Create calendar event 
+  // Create calendar event - UPDATED to use calendar-service.js
   const createEvent = async () => {
-    if (!detectedText || !isAuthenticated || !accessToken) {
-      const reason = !detectedText ? 'missing text data' : 
-                    !isAuthenticated ? 'not authenticated' : 'missing access token';
-      log(`Cannot create event: ${reason}`);
-      setEventCreationError(`Cannot create event: ${reason}`);
+    if (!detectedText) {
+      log('Cannot create event: missing text data');
+      setEventCreationError('Cannot create event: missing text data');
       return;
     }
     
@@ -703,25 +619,11 @@ const BluetoothPage = () => {
       setCreatedEvent(null);
       setEventCreationError(null);
       setShowEventConfirmation(false);
-      
-      // If no parsed event details yet, try to parse them
-      if (!eventDetails) {
-        const parsedEventDetails = parseTextToEventDetails(detectedText, dateInfo);
-        if (!parsedEventDetails) {
-          log('Failed to parse event details from text');
-          setCalendarStatus('Failed to parse event details');
-          setEventCreationError('Failed to extract event details from the handwriting');
-          return;
-        }
-        setEventDetails(parsedEventDetails);
-      }
-      
       setIsCreatingEvent(true);
       setCalendarStatus('Creating event...');
-      log(`Creating calendar event: "${eventDetails.summary}"`);
       
-      // Call the calendar service to create the event
-      const result = await createCalendarEvent(accessToken, eventDetails);
+      // Use our helper function that handles all the complexity
+      const result = await createEventFromDetectedText(detectedText, dateInfo);
       
       log('Event created successfully!');
       setCalendarStatus('Event created successfully!');
@@ -733,264 +635,320 @@ const BluetoothPage = () => {
       
     } catch (err) {
       const errorMsg = err.message || 'Unknown error';
-      log(`Error creating calendar event: ${errorMsg}`);
-      setCalendarStatus(`Error: ${errorMsg}`);
-      setEventCreationError(`Failed to create event: ${errorMsg}`);
+      
+      // If the error mentions authentication, prompt for auth
+      if (errorMsg.includes('Authentication') || errorMsg.includes('auth')) {
+        log('Authentication needed for calendar access');
+        handleGoogleAuth();
+      } else {
+        log(`Error creating calendar event: ${errorMsg}`);
+        setCalendarStatus(`Error: ${errorMsg}`);
+        setEventCreationError(`Failed to create event: ${errorMsg}`);
+      }
     } finally {
       setIsCreatingEvent(false);
     }
   };
 
-    // Format a date for display
-    const formatEventTime = (isoString) => {
-      if (!isoString) return '(not set)';
-      
-      try {
-        const date = new Date(isoString);
-        return date.toLocaleString(undefined, {
-          weekday: 'short',
-          month: 'short', 
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-      } catch (e) {
-        return isoString;
-      }
-    };
+  // Format a date for display
+  const formatEventTime = (isoString) => {
+    if (!isoString) return '(not set)';
     
-    const renderEventCreationStatus = () => {
-      return (
-        <div style={{ 
-          marginTop: '20px',
-          border: eventCreationError ? '1px solid #f44336' : '1px solid #4CAF50',
-          borderRadius: '4px',
-          padding: '15px',
-          backgroundColor: eventCreationError ? '#ffebee' : '#e8f5e9'
-        }}>
-          <h3>Calendar Event Status</h3>
-          
-          {isCreatingEvent && (
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-              <div className="loading-spinner" style={{ 
-                width: '20px', 
-                height: '20px', 
-                border: '3px solid #f3f3f3',
-                borderTop: '3px solid #3498db',
-                borderRadius: '50%',
-                animation: 'spin 2s linear infinite',
-                marginRight: '10px'
-              }}></div>
-              <span>Creating event in Google Calendar...</span>
-            </div>
-          )}
-          
-          {eventCreationError && (
-            <div style={{ color: '#f44336' }}>
-              <p><strong>Error:</strong> {eventCreationError}</p>
-              <button 
-                onClick={() => setEventCreationError(null)}
-                style={{ 
-                  padding: '5px 10px',
-                  backgroundColor: '#f44336',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  marginTop: '5px'
-                }}
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-          
-          {createdEvent && showEventConfirmation && (
-            <div>
-              <div style={{ 
-                backgroundColor: '#fff', 
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                padding: '10px',
-                marginBottom: '10px'
-              }}>
-                <h4 style={{ margin: '0 0 10px 0', color: '#4CAF50' }}>✓ Event Created Successfully!</h4>
-                <p><strong>Title:</strong> {createdEvent.summary}</p>
-                <p><strong>Start:</strong> {formatEventTime(createdEvent.start?.dateTime)}</p>
-                <p><strong>End:</strong> {formatEventTime(createdEvent.end?.dateTime)}</p>
-                
-                {createdEvent.htmlLink && (
-                  <a 
-                    href={createdEvent.htmlLink} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'inline-block',
-                      padding: '5px 10px',
-                      backgroundColor: '#4285F4',
-                      color: 'white',
-                      textDecoration: 'none',
-                      borderRadius: '4px',
-                      marginTop: '10px'
-                    }}
-                  >
-                    View in Google Calendar
-                  </a>
-                )}
-              </div>
-              
-              <button 
-                onClick={() => {
-                  setShowEventConfirmation(false);
-                  setCreatedEvent(null);
-                }}
-                style={{ 
-                  padding: '5px 10px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-          
-          {!isCreatingEvent && !eventCreationError && !createdEvent && (
-            <div>
-              <p>No events have been created yet. Use the "Create Calendar Event" button after text detection.</p>
-            </div>
-          )}
-        </div>
-      );
-    };
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleString(undefined, {
+        weekday: 'short',
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return isoString;
+    }
+  };
   
- // Event creation section component - moved outside useEffect
- const renderEventCreationSection = () => {
-  if (!detectedText) return null;
-  
-  return (
-    <div style={{ 
-      marginTop: '20px', 
-      padding: '15px',
-      backgroundColor: '#f5f5f5',
-      borderRadius: '8px'
-    }}>
-      <h3>Google Calendar Integration</h3>
-      
-      {/* Authentication Status */}
+  const renderEventCreationStatus = () => {
+    return (
       <div style={{ 
-        padding: '10px', 
-        backgroundColor: isAuthenticated ? '#e8f5e9' : '#fff3e0',
+        marginTop: '20px',
+        border: eventCreationError ? '1px solid #f44336' : '1px solid #4CAF50',
         borderRadius: '4px',
-        marginBottom: '15px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+        padding: '15px',
+        backgroundColor: eventCreationError ? '#ffebee' : '#e8f5e9'
       }}>
-        <div>
-          <strong>Auth Status:</strong> {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
-        </div>
+        <h3>Calendar Event Status</h3>
         
-        <button
-          onClick={handleGoogleAuth}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: isAuthenticated ? '#4CAF50' : '#FF9800',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          {isAuthenticated ? 'Re-Authenticate' : 'Connect to Google Calendar'}
-        </button>
-      </div>
-      
-      {/* Parsed Event Details Preview */}
-      {eventDetails && (
-        <div style={{ 
-          border: '1px solid #ddd',
-          borderRadius: '4px',
-          padding: '10px',
-          backgroundColor: '#fff',
-          marginBottom: '15px'
-        }}>
-          <h4>Parsed Event Details</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '5px' }}>
-            <strong>Title:</strong> <span>{eventDetails.summary}</span>
-            <strong>Start:</strong> <span>{formatEventTime(eventDetails.start?.dateTime)}</span>
-            <strong>End:</strong> <span>{formatEventTime(eventDetails.end?.dateTime)}</span>
-            <strong>Description:</strong> <span>{eventDetails.description || '(none)'}</span>
+        {isCreatingEvent && (
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+            <div className="loading-spinner" style={{ 
+              width: '20px', 
+              height: '20px', 
+              border: '3px solid #f3f3f3',
+              borderTop: '3px solid #3498db',
+              borderRadius: '50%',
+              animation: 'spin 2s linear infinite',
+              marginRight: '10px'
+            }}></div>
+            <span>Creating event in Google Calendar...</span>
           </div>
-          
-          <button 
-            onClick={() => setEventDetails(null)}
-            style={{ 
-              padding: '5px 10px',
-              backgroundColor: '#f5f5f5',
+        )}
+        
+        {eventCreationError && (
+          <div style={{ color: '#f44336' }}>
+            <p><strong>Error:</strong> {eventCreationError}</p>
+            <button 
+              onClick={() => setEventCreationError(null)}
+              style={{ 
+                padding: '5px 10px',
+                backgroundColor: '#f44336',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                marginTop: '5px'
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        
+        {createdEvent && showEventConfirmation && (
+          <div>
+            <div style={{ 
+              backgroundColor: '#fff', 
               border: '1px solid #ddd',
               borderRadius: '4px',
-              marginTop: '10px',
+              padding: '10px',
+              marginBottom: '10px'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#4CAF50' }}>✓ Event Created Successfully!</h4>
+              <p><strong>Title:</strong> {createdEvent.summary}</p>
+              <p><strong>Start:</strong> {formatEventTime(createdEvent.start?.dateTime)}</p>
+              <p><strong>End:</strong> {formatEventTime(createdEvent.end?.dateTime)}</p>
+              
+              {createdEvent.htmlLink && (
+                <a 
+                  href={createdEvent.htmlLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-block',
+                    padding: '5px 10px',
+                    backgroundColor: '#4285F4',
+                    color: 'white',
+                    textDecoration: 'none',
+                    borderRadius: '4px',
+                    marginTop: '10px'
+                  }}
+                >
+                  View in Google Calendar
+                </a>
+              )}
+            </div>
+            
+            <button 
+              onClick={() => {
+                setShowEventConfirmation(false);
+                setCreatedEvent(null);
+              }}
+              style={{ 
+                padding: '5px 10px',
+                backgroundColor: '#4CAF50',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        
+        {!isCreatingEvent && !eventCreationError && !createdEvent && (
+          <div>
+            <p>No events have been created yet. Use the "Create Calendar Event" button after text detection.</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Event creation section component - UPDATED with auto-create toggle
+  const renderEventCreationSection = () => {
+    if (!detectedText) return null;
+    
+    return (
+      <div style={{ 
+        marginTop: '20px', 
+        padding: '15px',
+        backgroundColor: '#f5f5f5',
+        borderRadius: '8px'
+      }}>
+        <h3>Google Calendar Integration</h3>
+        
+        {/* Auto-create Toggle - NEW */}
+        <div style={{ 
+          padding: '10px',
+          backgroundColor: '#fff', 
+          borderRadius: '4px',
+          marginBottom: '15px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <span><strong>Auto-create events:</strong> When text is detected, automatically create calendar events</span>
+          <label className="switch" style={{
+            position: 'relative',
+            display: 'inline-block',
+            width: '50px',
+            height: '24px'
+          }}>
+            <input 
+              type="checkbox" 
+              checked={autoCreateEvent} 
+              onChange={() => setAutoCreateEvent(!autoCreateEvent)}
+              style={{
+                opacity: 0,
+                width: 0,
+                height: 0
+              }}
+            />
+            <span style={{
+              position: 'absolute',
               cursor: 'pointer',
-              fontSize: '0.8em'
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: autoCreateEvent ? '#4CAF50' : '#ccc',
+              transition: '.4s',
+              borderRadius: '24px'
+            }}>
+              <span style={{
+                position: 'absolute',
+                content: '',
+                height: '16px',
+                width: '16px',
+                left: autoCreateEvent ? '30px' : '4px',
+                bottom: '4px',
+                backgroundColor: 'white',
+                transition: '.4s',
+                borderRadius: '50%'
+              }}></span>
+            </span>
+          </label>
+        </div>
+        
+        {/* Authentication Status */}
+        <div style={{ 
+          padding: '10px', 
+          backgroundColor: isAuthenticated ? '#e8f5e9' : '#fff3e0',
+          borderRadius: '4px',
+          marginBottom: '15px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <strong>Auth Status:</strong> {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
+          </div>
+          
+          <button
+            onClick={handleGoogleAuth}
+            style={{ 
+              padding: '8px 16px',
+              backgroundColor: isAuthenticated ? '#4CAF50' : '#FF9800',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
             }}
           >
-            Clear & Re-parse
+            {isAuthenticated ? 'Re-Authenticate' : 'Connect to Google Calendar'}
           </button>
         </div>
-      )}
-      
-      {/* Create Event Button */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
-        <button
-          onClick={createEvent}
-          disabled={!isAuthenticated || isCreatingEvent}
-          style={{ 
-            padding: '10px 20px',
-            backgroundColor: (!isAuthenticated || isCreatingEvent) ? '#cccccc' : '#4CAF50',
-            color: 'white',
-            border: 'none',
+        
+        {/* Parsed Event Details Preview */}
+        {eventDetails && (
+          <div style={{ 
+            border: '1px solid #ddd',
             borderRadius: '4px',
-            cursor: (!isAuthenticated || isCreatingEvent) ? 'default' : 'pointer',
-            fontSize: '1em',
-            fontWeight: 'bold'
-          }}
-        >
-          {isCreatingEvent ? 'Creating Event...' : 'Create Calendar Event'}
-        </button>
+            padding: '10px',
+            backgroundColor: '#fff',
+            marginBottom: '15px'
+          }}>
+            <h4>Parsed Event Details</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '5px' }}>
+              <strong>Title:</strong> <span>{eventDetails.summary}</span>
+              <strong>Start:</strong> <span>{formatEventTime(eventDetails.start?.dateTime)}</span>
+              <strong>End:</strong> <span>{formatEventTime(eventDetails.end?.dateTime)}</span>
+              <strong>Description:</strong> <span>{eventDetails.description || '(none)'}</span>
+            </div>
+            
+            <button 
+              onClick={() => setEventDetails(null)}
+              style={{ 
+                padding: '5px 10px',
+                backgroundColor: '#f5f5f5',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                marginTop: '10px',
+                cursor: 'pointer',
+                fontSize: '0.8em'
+              }}
+            >
+              Clear & Re-parse
+            </button>
+          </div>
+        )}
+        
+        {/* Create Event Button */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
+          <button
+            onClick={createEvent}
+            disabled={!detectedText || isCreatingEvent}
+            style={{ 
+              padding: '10px 20px',
+              backgroundColor: (!detectedText || isCreatingEvent) ? '#cccccc' : '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: (!detectedText || isCreatingEvent) ? 'default' : 'pointer',
+              fontSize: '1em',
+              fontWeight: 'bold'
+            }}
+          >
+            {isCreatingEvent ? 'Creating Event...' : 'Create Calendar Event'}
+          </button>
+        </div>
+        
+        {/* Event Creation Status/Confirmation */}
+        {renderEventCreationStatus()}
       </div>
-      
-      {/* Event Creation Status/Confirmation */}
-      {renderEventCreationStatus()}
-    </div>
-  );
-};
+    );
+  };
 
-  // Check for authentication token on component mount
+  // Check for authentication token on component mount - UPDATED to use calendar-service.js
   useEffect(() => {
-    // Check if we have a token in URL from Google Auth redirect
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const token = params.get('access_token');
-    
-    if (token) {
-      setAccessToken(token);
-      verifyToken(token).then(tokenInfo => {
-        if (tokenInfo.valid) {
+    // Use our helper function to get and validate the token
+    getAccessToken().then(({ token, isValid }) => {
+      if (token) {
+        setAccessToken(token);
+        
+        if (isValid) {
           setIsAuthenticated(true);
           log('Authentication token found and verified');
-          
-          // Remove the token from the URL for security
-          window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+          log('Token found but not valid');
         }
-      }).catch(err => {
-        log(`Token verification error: ${err.message}`);
-      });
-    }
+      }
+    }).catch(err => {
+      log(`Token error: ${err.message}`);
+    });
 
     return () => {
       // Clean up notification listener if characteristic exists
@@ -1044,9 +1002,6 @@ const BluetoothPage = () => {
       </div>
     );
   };
-
-  {/* Event Creation Section - Only show when text is detected */}
-  {detectedText && renderEventCreationSection()}
 
   // Render the UI
   return (

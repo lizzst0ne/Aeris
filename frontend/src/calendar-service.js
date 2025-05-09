@@ -1,163 +1,284 @@
 // calendar-service.js
-const API_KEY = "AIzaSyCZG35-Cpxxh0cuQAD888ExXtcq5oKDigA";// The API key you created
+// Functions for interacting with Google Calendar API
 
-// Function to fetch user's calendar events
+// Function to fetch calendar events
 export const fetchCalendarEvents = async (accessToken) => {
-  try {
-    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error("Authentication failed: Token may be expired");
-      } else if (response.status === 403) {
-        throw new Error("Authorization failed: Insufficient permissions");
-      } else {
-        throw new Error(data.error?.message || `API error: ${response.status}`);
-      }
-    }
-    
-    return data.items || [];
-  } catch (error) {
-    throw error;
+  if (!accessToken) {
+    throw new Error('No access token available');
   }
+
+  const timeMin = new Date().toISOString(); // Now
+  const timeMax = new Date();
+  timeMax.setDate(timeMax.getDate() + 30); // 30 days from now
+
+  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax.toISOString())}&maxResults=10&singleEvents=true&orderBy=startTime`;
+  
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Failed to fetch events: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await response.json();
+  return data.items || [];
 };
 
+// Function to verify token
 export const verifyToken = async (token) => {
   try {
     const response = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${token}`);
-    if (response.ok) {
-      const data = await response.json();
-      console.log("Token is valid. Expires in:", data.expires_in, "seconds");
-      console.log("Token scopes:", data.scope);
-      
-      // Check if the token has the necessary scope for creating events
-      const hasCalendarScope = data.scope.includes('https://www.googleapis.com/auth/calendar');
-      const hasEventsScope = data.scope.includes('https://www.googleapis.com/auth/calendar.events');
-      
-      if (!hasCalendarScope && !hasEventsScope) {
-        console.error("TOKEN LACKS REQUIRED SCOPES FOR CALENDAR OPERATIONS!");
-        console.error("Current scopes:", data.scope);
-        console.error("Needed scopes: https://www.googleapis.com/auth/calendar.events");
-      }
-      
-      return {
-        valid: true,
-        expiresIn: data.expires_in,
-        scopes: data.scope,
-        hasRequiredScopes: hasCalendarScope || hasEventsScope
-      };
-    } else {
-      console.error("Token validation failed");
-      const errorText = await response.text();
-      console.error("Error details:", errorText);
-      return { valid: false, error: errorText };
-    }
-  } catch (error) {
-    console.error("Token verification error:", error);
-    return { valid: false, error: error.toString() };
-  }
-};
-
-// Function to create a new calendar event
-export const createCalendarEvent = async (accessToken, eventDetails) => {
-  try {
-    // First verify the token has the right scopes
-    const tokenInfo = await verifyToken(accessToken);
-    if (!tokenInfo.valid) {
-      throw new Error("Invalid access token");
-    }
-    
-    if (!tokenInfo.hasRequiredScopes) {
-      throw new Error("Access token does not have required calendar scopes. Please sign in again and approve all requested permissions.");
-    }
-    
-    const formattedEvent = formatEventDates(eventDetails);
-    
-    const response = await fetch(
-      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formattedEvent),
-      }
-    );
-
-    const data = await response.json();
     
     if (!response.ok) {
-      console.error("Failed to create event:", data);
-      
-      // Provide more detailed error information
-      if (response.status === 403) {
-        throw new Error(`Authorization failed: Insufficient permissions. ${data.error?.message || ''}`);
-      } else {
-        throw new Error(data.error?.message || `API error: ${response.status}`);
-      }
+      return { valid: false, error: `Status ${response.status}: ${response.statusText}` };
     }
-
-    return data;
-  } catch (error) {
-    console.error("Error creating calendar event:", error);
-    throw error;
+    
+    const data = await response.json();
+    return {
+      valid: true,
+      expiresIn: data.expires_in,
+      scope: data.scope
+    };
+  } catch (err) {
+    console.error('Token verification error:', err);
+    return { valid: false, error: err.message };
   }
 };
 
-// Helper function to ensure dates are properly formatted
-function formatEventDates(eventDetails) {
-  const formattedEvent = { ...eventDetails };
+// Function to create a calendar event
+export const createCalendarEvent = async (accessToken, eventData) => {
+  if (!accessToken) {
+    throw new Error('No access token available');
+  }
+
+  if (!eventData || !eventData.summary) {
+    throw new Error('Invalid event data');
+  }
+
+  const url = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
   
-  // Make sure start and end exist
-  if (!formattedEvent.start) formattedEvent.start = {};
-  if (!formattedEvent.end) formattedEvent.end = {};
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(eventData)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Failed to create event: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+  }
+
+  return response.json();
+};
+
+/**
+ * Parse text into event details
+ * This version prioritizes using dateInfo from the Bluetooth device
+ */
+export const parseTextToEventDetails = (text, dateInfo = null) => {
+  if (!text || text === 'No text detected') {
+    return null;
+  }
   
-  // Handle start date/time
-  if (formattedEvent.start.dateTime) {
-    // If it's already a string but not in ISO format, convert it
-    if (typeof formattedEvent.start.dateTime === 'string' && 
-        !formattedEvent.start.dateTime.endsWith('Z') && 
-        !formattedEvent.start.dateTime.includes('+')) {
-      // Convert to ISO string with timezone
-      const startDate = new Date(formattedEvent.start.dateTime);
-      formattedEvent.start.dateTime = startDate.toISOString();
-    } else if (formattedEvent.start.dateTime instanceof Date) {
-      // If it's a Date object, convert to ISO string
-      formattedEvent.start.dateTime = formattedEvent.start.dateTime.toISOString();
+  try {
+    // Split text into lines and remove empty lines
+    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    
+    if (lines.length === 0) return null;
+    
+    // Use the first line as the event title
+    const title = lines[0].trim();
+    
+    // Initialize event information
+    let eventDate = null;
+    let eventTime = null;
+    let description = '';
+    
+    // PRIORITIZE dateInfo from Bluetooth device if available
+    if (dateInfo) {
+      const [month, day] = dateInfo.split(',').map(Number);
+      if (!isNaN(month) && !isNaN(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const currentYear = new Date().getFullYear();
+        eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        console.log(`Using date from Bluetooth device: ${month}/${day} -> ${eventDate}`);
+      }
+    }
+    
+    // Only try to parse date from text if we don't have dateInfo from device
+    if (!eventDate) {
+      // Check for date in the format MM/DD, MM-DD or similar
+      const dateRegex = /(\d{1,2})[\/\-](\d{1,2})/;
+      
+      // Look through lines for date patterns
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        // Check for date
+        const dateMatch = line.match(dateRegex);
+        if (dateMatch && !eventDate) {
+          const month = parseInt(dateMatch[1]);
+          const day = parseInt(dateMatch[2]);
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            // Use current year for the date
+            const currentYear = new Date().getFullYear();
+            eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            console.log(`Parsed date from text: ${month}/${day} -> ${eventDate}`);
+          }
+        }
+      }
+    }
+    
+    // Look for time in the text (regardless of where we got the date from)
+    // Check for time in the format HH:MM AM/PM or 24hr
+    const timeRegex = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i;
+    
+    // Look through lines for time patterns
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Check for time
+      const timeMatch = line.match(timeRegex);
+      if (timeMatch && !eventTime) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+        
+        // Convert to 24-hour format if AM/PM is specified
+        if (ampm === 'PM' && hours < 12) {
+          hours += 12;
+        } else if (ampm === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+        console.log(`Parsed time from text: ${hours}:${minutes} -> ${eventTime}`);
+      }
+    }
+    
+    // Create description from all non-title lines
+    if (lines.length > 1) {
+      description = lines.slice(1).join('\n');
+    }
+    
+    // Default to today if no date detected
+    if (!eventDate) {
+      const today = new Date();
+      eventDate = today.toISOString().split('T')[0];
+      console.log(`No date found, defaulting to today: ${eventDate}`);
+    }
+    
+    // Default time if none detected
+    if (!eventTime) {
+      eventTime = '12:00:00'; // Default to noon
+      console.log(`No time found, defaulting to noon: ${eventTime}`);
+    }
+    
+    // Create start and end times (1 hour duration by default)
+    const startDateTime = new Date(`${eventDate}T${eventTime}`);
+    const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Add 1 hour
+    
+    return {
+      summary: title,
+      description: description,
+      start: {
+        dateTime: startDateTime.toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      },
+      end: {
+        dateTime: endDateTime.toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }
+    };
+  } catch (err) {
+    console.error('Error parsing text to event:', err);
+    return null;
+  }
+};
+
+/**
+ * Get access token from localStorage or URL fragment
+ * Returns { token, isValid } object
+ */
+export const getAccessToken = async () => {
+  // First check localStorage
+  let token = localStorage.getItem('googleAccessToken');
+  
+  // If no token in localStorage, check URL fragment (for redirects)
+  if (!token) {
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const urlToken = params.get('access_token');
+    
+    if (urlToken) {
+      token = urlToken;
+      
+      // Store in localStorage for future use
+      localStorage.setItem('googleAccessToken', token);
+      
+      // Remove the token from the URL for security
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }
   
-  // Handle end date/time
-  if (formattedEvent.end.dateTime) {
-    // If it's already a string but not in ISO format, convert it
-    if (typeof formattedEvent.end.dateTime === 'string' && 
-        !formattedEvent.end.dateTime.endsWith('Z') && 
-        !formattedEvent.end.dateTime.includes('+')) {
-      // Convert to ISO string with timezone
-      const endDate = new Date(formattedEvent.end.dateTime);
-      formattedEvent.end.dateTime = endDate.toISOString();
-    } else if (formattedEvent.end.dateTime instanceof Date) {
-      // If it's a Date object, convert to ISO string
-      formattedEvent.end.dateTime = formattedEvent.end.dateTime.toISOString();
-    }
+  // Verify the token if we have one
+  if (token) {
+    const tokenInfo = await verifyToken(token);
+    return {
+      token,
+      isValid: tokenInfo.valid,
+      expiresIn: tokenInfo.expiresIn,
+      error: tokenInfo.error
+    };
   }
   
-  // Ensure timezone is set if not already
-  if (formattedEvent.start.dateTime && !formattedEvent.start.timeZone) {
-    formattedEvent.start.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return { token: null, isValid: false };
+};
+
+/**
+ * Start Google OAuth flow
+ */
+export const startGoogleAuthFlow = () => {
+  // Google OAuth 2.0 parameters
+  const clientId = '1054100119575-v32a6nj5i9dlrojhscieq8sb35pis9io.apps.googleusercontent.com';
+  const redirectUri = window.location.origin + window.location.pathname;
+  const scope = 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events';
+  
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${clientId}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&response_type=token` +
+    `&scope=${encodeURIComponent(scope)}` +
+    `&prompt=consent`;
+  
+  // Redirect to Google Auth
+  window.location.href = authUrl;
+};
+
+/**
+ * Create calendar event from detected text
+ * This is the main function to use when you want to create an event from text
+ */
+export const createEventFromDetectedText = async (detectedText, dateInfo = null) => {
+  // Step 1: Get and verify access token
+  const { token, isValid, error } = await getAccessToken();
+  
+  if (!token || !isValid) {
+    throw new Error(`Authentication required: ${error || 'No valid token'}`);
   }
   
-  if (formattedEvent.end.dateTime && !formattedEvent.end.timeZone) {
-    formattedEvent.end.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Step 2: Parse text into event details
+  const eventDetails = parseTextToEventDetails(detectedText, dateInfo);
+  if (!eventDetails) {
+    throw new Error('Failed to extract event details from the text');
   }
   
-  return formattedEvent;
-}
+  // Step 3: Create the calendar event
+  return createCalendarEvent(token, eventDetails);
+};
