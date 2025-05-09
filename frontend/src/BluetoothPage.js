@@ -793,10 +793,10 @@ const BluetoothPage = () => {
         backgroundColor: '#f5f5f5',
         borderRadius: '8px'
       }}>
-        <h3>Google Calendar Integration</h3>
+         {/* <h3>Google Calendar Integration</h3>
         
-        {/* Auto-create Toggle - NEW */}
-        <div style={{ 
+        {/* Auto-create Toggle - NEW 
+         <div style={{ 
           padding: '10px',
           backgroundColor: '#fff', 
           borderRadius: '4px',
@@ -848,8 +848,8 @@ const BluetoothPage = () => {
           </label>
         </div>
         
-        {/* Authentication Status */}
-        <div style={{ 
+        {/* Authentication Status 
+         <div style={{ 
           padding: '10px', 
           backgroundColor: isAuthenticated ? '#e8f5e9' : '#fff3e0',
           borderRadius: '4px',
@@ -877,7 +877,7 @@ const BluetoothPage = () => {
           </button>
         </div>
         
-        {/* Parsed Event Details Preview */}
+        {/* Parsed Event Details Preview 
         {eventDetails && (
           <div style={{ 
             border: '1px solid #ddd',
@@ -911,7 +911,7 @@ const BluetoothPage = () => {
           </div>
         )}
         
-        {/* Create Event Button */}
+        {/* Create Event Button 
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
           <button
             onClick={createEvent}
@@ -929,7 +929,7 @@ const BluetoothPage = () => {
           >
             {isCreatingEvent ? 'Creating Event...' : 'Create Calendar Event'}
           </button>
-        </div>
+        </div> */}
         
         {/* Event Creation Status/Confirmation */}
         {renderEventCreationStatus()}
