@@ -301,10 +301,21 @@ const processData = (data) => {
   const setupNotifications = async (characteristic) => {
     dataCharRef.current = characteristic;
     log('Starting notifications for data characteristic');
-
+  
     try {
       // Add event listener for notifications
       characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+      
+      // Request a faster connection interval if the device supports it
+      if (connectedDevice && connectedDevice.gatt) {
+        // This is optional and might not be supported by all devices
+        try {
+          await connectedDevice.gatt.requestConnectionPriorityChange('high');
+          log('Requested high priority connection');
+        } catch (e) {
+          log('Connection priority change not supported or failed');
+        }
+      }
       
       // Start notifications
       await characteristic.startNotifications();
@@ -657,7 +668,7 @@ const sendToVisionAPI = async () => {
           <strong>Vision API Status:</strong> {visionApiStatus}
         </div>
       )}
-      
+
       {/* Data Display Section */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
         {/* Left Column - Status and Data */}
@@ -721,24 +732,6 @@ const sendToVisionAPI = async () => {
           {renderVisionResults()}
         </div>
       </div>
-      
-      {/* Debug Log Section
-      <div style={{ marginTop: '30px' }}>
-        <h3>Debug Console</h3>
-        <pre style={{ 
-          background: '#333', 
-          color: '#f3f3f3',
-          padding: '10px', 
-          height: '200px', 
-          overflowY: 'scroll',
-          fontFamily: 'monospace',
-          borderRadius: '4px'
-        }}>
-          {debugLog.length > 0 ? 
-            debugLog.map((line, i) => <div key={i}>{line}</div>) : 
-            "No debug logs yet"}
-        </pre>
-      </div> */}
     </div>
   );
 };
