@@ -348,7 +348,7 @@ const BluetoothPage = () => {
 
   
   // Connect to the Adafruit device
-  async function connectToDevice() {
+  const connectToDevice = async () => {
     try {
       log('Requesting Bluetooth device...');
       const device = await navigator.bluetooth.requestDevice({
@@ -1157,5 +1157,4 @@ const BluetoothPage = () => {
 };
 
 
-export {connectToDevice, connectedDevice};
 export default BluetoothPage;
