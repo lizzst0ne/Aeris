@@ -5,8 +5,7 @@ import GoogleLoginButton from './GoogleLoginButton';
 import CalendarComponent from './CalendarComponent';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import BluetoothPage from './BluetoothPage';
-import connectToDevice from '/BluetoothPage';
-import connectedDevice from '/BluetoothPage';
+
 
 function App() {
   const [user, setUser] = useState(null);
