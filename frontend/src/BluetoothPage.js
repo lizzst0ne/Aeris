@@ -7,8 +7,8 @@ import {
   createEventFromDetectedText,
   parseTextToEventDetails
 } from './calendar-service';
-const [connectedDevice, setConnectedDevice] = useState(null);
-export { connectToDevice, connectedDevice };
+
+
 
 // Google Vision API key - replace with your actual API key
 const GOOGLE_VISION_API_KEY = 'AIzaSyDTKpqKc0TMHZlxtRhBW6SvMNGqTCU1_ss';
@@ -1157,3 +1157,4 @@ const BluetoothPage = () => {
 };
 
 export default BluetoothPage;
+export { connectToDevice, connectedDevice };
