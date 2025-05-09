@@ -280,17 +280,19 @@ const processData = (data) => {
       const textDecoder = new TextDecoder('utf-8');
       const raw = textDecoder.decode(value);
       const trimmed = raw.trim();
-
+  
       // Only process new values (different from the last one)
       if (trimmed && trimmed !== lastValueRef.current) {
         lastValueRef.current = trimmed;
         setCurrentData(trimmed);
-        setMessageHistory((prev) => [`Received: ${trimmed}`, ...prev.slice(0, 19)]);
+        
+        // Only update message history for control messages, not coordinates
+        if (!trimmed.includes(':') || !sessionStateRef.current === 'collecting') {
+          setMessageHistory((prev) => [`Received: ${trimmed}`, ...prev.slice(0, 19)]);
+        }
         
         // Process the message based on its format
         processData(trimmed);
-        
-        log(`Data received: ${trimmed}`);
       }
     } catch (err) {
       log(`Error decoding value: ${err.message}`);
