@@ -1084,10 +1084,10 @@ const BluetoothPage = () => {
         {/* Data Display Section */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
           {/* Left Column - Status and Data */}
-         <div style={{ flex: '1 1 400px' }}>
+         {/* <div style={{ flex: '1 1 400px' }}>
              <div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-                {/* Current Info Panel*/} 
+                {/* Current Info Panel
                 <div style={{ 
                   flex: '1 1 300px',  
                   padding: '15px',
@@ -1101,7 +1101,7 @@ const BluetoothPage = () => {
                     <p><strong>Session State:</strong> {sessionStateRef.current}</p>
                     <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
     
-                    {/* New Event Parsing Debug Section */}
+                    {/* New Event Parsing Debug Section 
                     {currentData && detectedText && (
                       <>
                         <h4>Event Parsing Debug</h4>
@@ -1130,7 +1130,7 @@ const BluetoothPage = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Right Column - Canvas Preview and BMP Data */}
           <div style={{ 
