@@ -93,12 +93,37 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
     
     if (lines.length === 0) return null;
     
-    // Use the first line as the event title
-    const title = lines[0].trim();
-    
-    // Initialize event information
-    let eventDate = null;
+    // Get the first line - might contain time and title
+    let firstLine = lines[0].trim();
+    let title = firstLine;
     let eventTime = null;
+    
+    // Check if first line contains time in format "HH:MM AM/PM - Title"
+    const titleTimeRegex = /^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?\s*-\s*(.+)/i;
+    const titleTimeMatch = firstLine.match(titleTimeRegex);
+    
+    if (titleTimeMatch) {
+      // Extract time from title
+      let hours = parseInt(titleTimeMatch[1]);
+      const minutes = parseInt(titleTimeMatch[2]);
+      const ampm = titleTimeMatch[3] ? titleTimeMatch[3].toUpperCase() : null;
+      
+      // Convert to 24-hour format if AM/PM is specified
+      if (ampm === 'PM' && hours < 12) {
+        hours += 12;
+      } else if (ampm === 'AM' && hours === 12) {
+        hours = 0;
+      }
+      
+      eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+      console.log(`Parsed time from title: ${hours}:${minutes} -> ${eventTime}`);
+      
+      // Set the real title (after the time)
+      title = titleTimeMatch[4].trim();
+    }
+    
+    // Initialize other event information
+    let eventDate = null;
     let description = '';
     
     // PRIORITIZE dateInfo from Bluetooth device if available
@@ -111,54 +136,32 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
       }
     }
     
-    // // Only try to parse date from text if we don't have dateInfo from device
-    // if (!eventDate) {
-    //   // Check for date in the format MM/DD, MM-DD or similar
-    //   const dateRegex = /(\d{1,2})[\/\-](\d{1,2})/;
+    // If we didn't find time in the title, look through other lines
+    if (!eventTime) {
+      const timeRegex = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i;
       
-    //   // Look through lines for date patterns
-    //   for (let i = 1; i < lines.length; i++) {
-    //     const line = lines[i].trim();
+      // Look through lines for time patterns
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
         
-    //     // Check for date
-    //     const dateMatch = line.match(dateRegex);
-    //     if (dateMatch && !eventDate) {
-    //       const month = parseInt(dateMatch[1]);
-    //       const day = parseInt(dateMatch[2]);
-    //       if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-    //         // Use current year for the date
-    //         const currentYear = new Date().getFullYear();
-    //         eventDate = `${currentYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-    //         console.log(`Parsed date from text: ${month}/${day} -> ${eventDate}`);
-    //       }
-    //     }
-    //   }
-    // }
-    
-    // Look for time in the text (regardless of where we got the date from)
-    // Check for time in the format HH:MM AM/PM or 24hr
-    const timeRegex = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i;
-    
-    // Look through lines for time patterns
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      // Check for time
-      const timeMatch = line.match(timeRegex);
-      if (timeMatch && !eventTime) {
-        let hours = parseInt(timeMatch[1]);
-        const minutes = parseInt(timeMatch[2]);
-        const ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
-        
-        // Convert to 24-hour format if AM/PM is specified
-        if (ampm === 'PM' && hours < 12) {
-          hours += 12;
-        } else if (ampm === 'AM' && hours === 12) {
-          hours = 0;
+        // Check for time
+        const timeMatch = line.match(timeRegex);
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1]);
+          const minutes = parseInt(timeMatch[2]);
+          const ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+          
+          // Convert to 24-hour format if AM/PM is specified
+          if (ampm === 'PM' && hours < 12) {
+            hours += 12;
+          } else if (ampm === 'AM' && hours === 12) {
+            hours = 0;
+          }
+          
+          eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+          console.log(`Parsed time from text: ${hours}:${minutes} -> ${eventTime}`);
+          break;
         }
-        
-        eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-        console.log(`Parsed time from text: ${hours}:${minutes} -> ${eventTime}`);
       }
     }
     
