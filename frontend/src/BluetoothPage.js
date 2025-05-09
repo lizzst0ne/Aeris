@@ -286,6 +286,9 @@ const BluetoothPage = () => {
   const [eventDetails, setEventDetails] = useState(null);
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [calendarStatus, setCalendarStatus] = useState('Not created');
+  const [createdEvent, setCreatedEvent] = useState(null);
+  const [eventCreationError, setEventCreationError] = useState(null);
+  const [showEventConfirmation, setShowEventConfirmation] = useState(false);
   
   // Refs to maintain state between renders
   const dataCharRef = useRef(null);
@@ -756,28 +759,6 @@ const BluetoothPage = () => {
         return isoString;
       }
     };
-
-  // Check for authentication token on component mount
-  useEffect(() => {
-    // Check if we have a token in URL from Google Auth redirect
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const token = params.get('access_token');
-    
-    if (token) {
-      setAccessToken(token);
-      verifyToken(token).then(tokenInfo => {
-        if (tokenInfo.valid) {
-          setIsAuthenticated(true);
-          log('Authentication token found and verified');
-          
-          // Remove the token from the URL for security
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      }).catch(err => {
-        log(`Token verification error: ${err.message}`);
-      });
-    }
     
     const renderEventCreationStatus = () => {
       return (
@@ -887,107 +868,129 @@ const BluetoothPage = () => {
       );
     };
   
-    // Enhanced event creation section with parsed details preview
-    const renderEventCreationSection = () => {
-      if (!detectedText) return null;
+ // Event creation section component - moved outside useEffect
+ const renderEventCreationSection = () => {
+  if (!detectedText) return null;
+  
+  return (
+    <div style={{ 
+      marginTop: '20px', 
+      padding: '15px',
+      backgroundColor: '#f5f5f5',
+      borderRadius: '8px'
+    }}>
+      <h3>Google Calendar Integration</h3>
       
-      return (
-        <div style={{ 
-          marginTop: '20px', 
-          padding: '15px',
-          backgroundColor: '#f5f5f5',
-          borderRadius: '8px'
-        }}>
-          <h3>Google Calendar Integration</h3>
-          
-          {/* Authentication Status */}
-          <div style={{ 
-            padding: '10px', 
-            backgroundColor: isAuthenticated ? '#e8f5e9' : '#fff3e0',
+      {/* Authentication Status */}
+      <div style={{ 
+        padding: '10px', 
+        backgroundColor: isAuthenticated ? '#e8f5e9' : '#fff3e0',
+        borderRadius: '4px',
+        marginBottom: '15px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div>
+          <strong>Auth Status:</strong> {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
+        </div>
+        
+        <button
+          onClick={handleGoogleAuth}
+          style={{ 
+            padding: '8px 16px',
+            backgroundColor: isAuthenticated ? '#4CAF50' : '#FF9800',
+            color: 'white',
+            border: 'none',
             borderRadius: '4px',
-            marginBottom: '15px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <div>
-              <strong>Auth Status:</strong> {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
-            </div>
-            
-            <button
-              onClick={handleGoogleAuth}
-              style={{ 
-                padding: '8px 16px',
-                backgroundColor: isAuthenticated ? '#4CAF50' : '#FF9800',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              {isAuthenticated ? 'Re-Authenticate' : 'Connect to Google Calendar'}
-            </button>
+            cursor: 'pointer'
+          }}
+        >
+          {isAuthenticated ? 'Re-Authenticate' : 'Connect to Google Calendar'}
+        </button>
+      </div>
+      
+      {/* Parsed Event Details Preview */}
+      {eventDetails && (
+        <div style={{ 
+          border: '1px solid #ddd',
+          borderRadius: '4px',
+          padding: '10px',
+          backgroundColor: '#fff',
+          marginBottom: '15px'
+        }}>
+          <h4>Parsed Event Details</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '5px' }}>
+            <strong>Title:</strong> <span>{eventDetails.summary}</span>
+            <strong>Start:</strong> <span>{formatEventTime(eventDetails.start?.dateTime)}</span>
+            <strong>End:</strong> <span>{formatEventTime(eventDetails.end?.dateTime)}</span>
+            <strong>Description:</strong> <span>{eventDetails.description || '(none)'}</span>
           </div>
           
-          {/* Parsed Event Details Preview */}
-          {eventDetails && (
-            <div style={{ 
+          <button 
+            onClick={() => setEventDetails(null)}
+            style={{ 
+              padding: '5px 10px',
+              backgroundColor: '#f5f5f5',
               border: '1px solid #ddd',
               borderRadius: '4px',
-              padding: '10px',
-              backgroundColor: '#fff',
-              marginBottom: '15px'
-            }}>
-              <h4>Parsed Event Details</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '5px' }}>
-                <strong>Title:</strong> <span>{eventDetails.summary}</span>
-                <strong>Start:</strong> <span>{formatEventTime(eventDetails.start?.dateTime)}</span>
-                <strong>End:</strong> <span>{formatEventTime(eventDetails.end?.dateTime)}</span>
-                <strong>Description:</strong> <span>{eventDetails.description || '(none)'}</span>
-              </div>
-              
-              <button 
-                onClick={() => setEventDetails(null)}
-                style={{ 
-                  padding: '5px 10px',
-                  backgroundColor: '#f5f5f5',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  marginTop: '10px',
-                  cursor: 'pointer',
-                  fontSize: '0.8em'
-                }}
-              >
-                Clear & Re-parse
-              </button>
-            </div>
-          )}
-          
-          {/* Create Event Button */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
-            <button
-              onClick={createEvent}
-              disabled={!isAuthenticated || isCreatingEvent}
-              style={{ 
-                padding: '10px 20px',
-                backgroundColor: (!isAuthenticated || isCreatingEvent) ? '#cccccc' : '#4CAF50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: (!isAuthenticated || isCreatingEvent) ? 'default' : 'pointer',
-                fontSize: '1em',
-                fontWeight: 'bold'
-              }}
-            >
-              {isCreatingEvent ? 'Creating Event...' : 'Create Calendar Event'}
-            </button>
-          </div>
-          
-          {/* Event Creation Status/Confirmation */}
-          {renderEventCreationStatus()}
+              marginTop: '10px',
+              cursor: 'pointer',
+              fontSize: '0.8em'
+            }}
+          >
+            Clear & Re-parse
+          </button>
         </div>
-      );
-    };
+      )}
+      
+      {/* Create Event Button */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
+        <button
+          onClick={createEvent}
+          disabled={!isAuthenticated || isCreatingEvent}
+          style={{ 
+            padding: '10px 20px',
+            backgroundColor: (!isAuthenticated || isCreatingEvent) ? '#cccccc' : '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: (!isAuthenticated || isCreatingEvent) ? 'default' : 'pointer',
+            fontSize: '1em',
+            fontWeight: 'bold'
+          }}
+        >
+          {isCreatingEvent ? 'Creating Event...' : 'Create Calendar Event'}
+        </button>
+      </div>
+      
+      {/* Event Creation Status/Confirmation */}
+      {renderEventCreationStatus()}
+    </div>
+  );
+};
+
+  // Check for authentication token on component mount
+  useEffect(() => {
+    // Check if we have a token in URL from Google Auth redirect
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const token = params.get('access_token');
+    
+    if (token) {
+      setAccessToken(token);
+      verifyToken(token).then(tokenInfo => {
+        if (tokenInfo.valid) {
+          setIsAuthenticated(true);
+          log('Authentication token found and verified');
+          
+          // Remove the token from the URL for security
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }).catch(err => {
+        log(`Token verification error: ${err.message}`);
+      });
+    }
 
     return () => {
       // Clean up notification listener if characteristic exists
@@ -1159,6 +1162,9 @@ const BluetoothPage = () => {
           {renderVisionResults()}
         </div>
       </div>
+
+      {/* Event Creation Section - Only show when text is detected */}
+      {detectedText && renderEventCreationSection()}
     </div>
   );
 };
