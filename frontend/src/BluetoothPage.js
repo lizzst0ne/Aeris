@@ -1010,23 +1010,24 @@ const BluetoothPage = () => {
 
   // Render the UI
   return (
-        <div>
-              <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
+    <div>
+      <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
     
-                      <div style={{textAlign: 'center', marginTop: '40%'}}>
-                          <button 
-                            onClick={connectToDevice}
-                            disabled={connectedDevice !== null}
-                            style={{
-                            border: '0.5px solid #1e1e1e', 
-                            backgroundColor: '#C5C5F1', 
-                            borderRadius: '30px', 
-                            width: '200px', 
-                            height: '75px',
-                            color: '#1e1e1e',
-                            fontSize: '20px'
-                          }}>Connect to Calendar</button>
-                      </div>  
+        <div style={{textAlign: 'center', marginTop: '40%'}}>
+          <button 
+            onClick={connectToDevice}
+            disabled={connectedDevice !== null}
+            style={{
+              disabled:{backgroundColor:'hsl(0, 0.00%, 84.70%)', color:'hsl(0, 0.00%, 31.80%)'},
+              border: '0.5px solid #1e1e1e', 
+              backgroundColor: '#C5C5F1', 
+              borderRadius: '30px', 
+              width: '200px', 
+              height: '75px',
+              color: '#1e1e1e',
+              fontSize: '20px'
+            }}>Connect to Calendar</button>
+        </div>  
                
       <div style={{ padding: '20px' }}>
         <h2>Bluetooth Calendar with Vision API</h2>
