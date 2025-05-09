@@ -630,9 +630,12 @@ const BluetoothPage = () => {
       log('Starting Google Authentication...');
       
       // Google OAuth 2.0 parameters
-      const clientId = '1054100119575-v32a6nj5i9dlrojhscieq8sb35pis9io.apps.googleusercontent.com'; // Add your Google API client ID
+      const clientId = '1054100119575-v32a6nj5i9dlrojhscieq8sb35pis9io.apps.googleusercontent.com';
       const redirectUri = window.location.origin + window.location.pathname;
       const scope = 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events';
+      
+      // Clear any previous errors
+      setEventCreationError(null);
       
       // Check if we have a token in URL fragment (returned after auth)
       const hash = window.location.hash.substring(1);
@@ -655,7 +658,9 @@ const BluetoothPage = () => {
           
           return token;
         } else {
-          log('Token verification failed: ' + (tokenInfo.error || 'Unknown error'));
+          const errorMsg = tokenInfo.error || 'Unknown error';
+          log('Token verification failed: ' + errorMsg);
+          setEventCreationError(`Auth error: ${errorMsg}`);
           setIsAuthenticated(false);
         }
       } else {
@@ -671,7 +676,9 @@ const BluetoothPage = () => {
         window.location.href = authUrl;
       }
     } catch (err) {
-      log(`Authentication error: ${err.message}`);
+      const errorMsg = err.message || 'Unknown error';
+      log(`Authentication error: ${errorMsg}`);
+      setEventCreationError(`Auth error: ${errorMsg}`);
       setIsAuthenticated(false);
     }
     
@@ -681,17 +688,26 @@ const BluetoothPage = () => {
   // Create calendar event 
   const createEvent = async () => {
     if (!detectedText || !isAuthenticated || !accessToken) {
-      log('Cannot create event: Missing text data or authentication');
+      const reason = !detectedText ? 'missing text data' : 
+                    !isAuthenticated ? 'not authenticated' : 'missing access token';
+      log(`Cannot create event: ${reason}`);
+      setEventCreationError(`Cannot create event: ${reason}`);
       return;
     }
     
     try {
+      // Clear previous creation states
+      setCreatedEvent(null);
+      setEventCreationError(null);
+      setShowEventConfirmation(false);
+      
       // If no parsed event details yet, try to parse them
       if (!eventDetails) {
         const parsedEventDetails = parseTextToEventDetails(detectedText, dateInfo);
         if (!parsedEventDetails) {
           log('Failed to parse event details from text');
           setCalendarStatus('Failed to parse event details');
+          setEventCreationError('Failed to extract event details from the handwriting');
           return;
         }
         setEventDetails(parsedEventDetails);
@@ -708,13 +724,38 @@ const BluetoothPage = () => {
       setCalendarStatus('Event created successfully!');
       console.log('Created event:', result);
       
+      // Store the created event details for display
+      setCreatedEvent(result);
+      setShowEventConfirmation(true);
+      
     } catch (err) {
-      log(`Error creating calendar event: ${err.message}`);
-      setCalendarStatus(`Error: ${err.message}`);
+      const errorMsg = err.message || 'Unknown error';
+      log(`Error creating calendar event: ${errorMsg}`);
+      setCalendarStatus(`Error: ${errorMsg}`);
+      setEventCreationError(`Failed to create event: ${errorMsg}`);
     } finally {
       setIsCreatingEvent(false);
     }
   };
+
+    // Format a date for display
+    const formatEventTime = (isoString) => {
+      if (!isoString) return '(not set)';
+      
+      try {
+        const date = new Date(isoString);
+        return date.toLocaleString(undefined, {
+          weekday: 'short',
+          month: 'short', 
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        return isoString;
+      }
+    };
 
   // Check for authentication token on component mount
   useEffect(() => {
@@ -738,6 +779,216 @@ const BluetoothPage = () => {
       });
     }
     
+    const renderEventCreationStatus = () => {
+      return (
+        <div style={{ 
+          marginTop: '20px',
+          border: eventCreationError ? '1px solid #f44336' : '1px solid #4CAF50',
+          borderRadius: '4px',
+          padding: '15px',
+          backgroundColor: eventCreationError ? '#ffebee' : '#e8f5e9'
+        }}>
+          <h3>Calendar Event Status</h3>
+          
+          {isCreatingEvent && (
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+              <div className="loading-spinner" style={{ 
+                width: '20px', 
+                height: '20px', 
+                border: '3px solid #f3f3f3',
+                borderTop: '3px solid #3498db',
+                borderRadius: '50%',
+                animation: 'spin 2s linear infinite',
+                marginRight: '10px'
+              }}></div>
+              <span>Creating event in Google Calendar...</span>
+            </div>
+          )}
+          
+          {eventCreationError && (
+            <div style={{ color: '#f44336' }}>
+              <p><strong>Error:</strong> {eventCreationError}</p>
+              <button 
+                onClick={() => setEventCreationError(null)}
+                style={{ 
+                  padding: '5px 10px',
+                  backgroundColor: '#f44336',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  marginTop: '5px'
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+          
+          {createdEvent && showEventConfirmation && (
+            <div>
+              <div style={{ 
+                backgroundColor: '#fff', 
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                padding: '10px',
+                marginBottom: '10px'
+              }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#4CAF50' }}>✓ Event Created Successfully!</h4>
+                <p><strong>Title:</strong> {createdEvent.summary}</p>
+                <p><strong>Start:</strong> {formatEventTime(createdEvent.start?.dateTime)}</p>
+                <p><strong>End:</strong> {formatEventTime(createdEvent.end?.dateTime)}</p>
+                
+                {createdEvent.htmlLink && (
+                  <a 
+                    href={createdEvent.htmlLink} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-block',
+                      padding: '5px 10px',
+                      backgroundColor: '#4285F4',
+                      color: 'white',
+                      textDecoration: 'none',
+                      borderRadius: '4px',
+                      marginTop: '10px'
+                    }}
+                  >
+                    View in Google Calendar
+                  </a>
+                )}
+              </div>
+              
+              <button 
+                onClick={() => {
+                  setShowEventConfirmation(false);
+                  setCreatedEvent(null);
+                }}
+                style={{ 
+                  padding: '5px 10px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+          
+          {!isCreatingEvent && !eventCreationError && !createdEvent && (
+            <div>
+              <p>No events have been created yet. Use the "Create Calendar Event" button after text detection.</p>
+            </div>
+          )}
+        </div>
+      );
+    };
+  
+    // Enhanced event creation section with parsed details preview
+    const renderEventCreationSection = () => {
+      if (!detectedText) return null;
+      
+      return (
+        <div style={{ 
+          marginTop: '20px', 
+          padding: '15px',
+          backgroundColor: '#f5f5f5',
+          borderRadius: '8px'
+        }}>
+          <h3>Google Calendar Integration</h3>
+          
+          {/* Authentication Status */}
+          <div style={{ 
+            padding: '10px', 
+            backgroundColor: isAuthenticated ? '#e8f5e9' : '#fff3e0',
+            borderRadius: '4px',
+            marginBottom: '15px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <strong>Auth Status:</strong> {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
+            </div>
+            
+            <button
+              onClick={handleGoogleAuth}
+              style={{ 
+                padding: '8px 16px',
+                backgroundColor: isAuthenticated ? '#4CAF50' : '#FF9800',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              {isAuthenticated ? 'Re-Authenticate' : 'Connect to Google Calendar'}
+            </button>
+          </div>
+          
+          {/* Parsed Event Details Preview */}
+          {eventDetails && (
+            <div style={{ 
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              padding: '10px',
+              backgroundColor: '#fff',
+              marginBottom: '15px'
+            }}>
+              <h4>Parsed Event Details</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '5px' }}>
+                <strong>Title:</strong> <span>{eventDetails.summary}</span>
+                <strong>Start:</strong> <span>{formatEventTime(eventDetails.start?.dateTime)}</span>
+                <strong>End:</strong> <span>{formatEventTime(eventDetails.end?.dateTime)}</span>
+                <strong>Description:</strong> <span>{eventDetails.description || '(none)'}</span>
+              </div>
+              
+              <button 
+                onClick={() => setEventDetails(null)}
+                style={{ 
+                  padding: '5px 10px',
+                  backgroundColor: '#f5f5f5',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  marginTop: '10px',
+                  cursor: 'pointer',
+                  fontSize: '0.8em'
+                }}
+              >
+                Clear & Re-parse
+              </button>
+            </div>
+          )}
+          
+          {/* Create Event Button */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
+            <button
+              onClick={createEvent}
+              disabled={!isAuthenticated || isCreatingEvent}
+              style={{ 
+                padding: '10px 20px',
+                backgroundColor: (!isAuthenticated || isCreatingEvent) ? '#cccccc' : '#4CAF50',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: (!isAuthenticated || isCreatingEvent) ? 'default' : 'pointer',
+                fontSize: '1em',
+                fontWeight: 'bold'
+              }}
+            >
+              {isCreatingEvent ? 'Creating Event...' : 'Create Calendar Event'}
+            </button>
+          </div>
+          
+          {/* Event Creation Status/Confirmation */}
+          {renderEventCreationStatus()}
+        </div>
+      );
+    };
+
     return () => {
       // Clean up notification listener if characteristic exists
       if (dataCharRef.current) {
@@ -790,6 +1041,9 @@ const BluetoothPage = () => {
       </div>
     );
   };
+
+  {/* Event Creation Section - Only show when text is detected */}
+  {detectedText && renderEventCreationSection()}
 
   // Render the UI
   return (
