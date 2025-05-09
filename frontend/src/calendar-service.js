@@ -93,38 +93,47 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
     
     if (lines.length === 0) return null;
     
-    // Get the first line - might contain time and title
+    // Get the first line
     let firstLine = lines[0].trim();
-    let title = firstLine;
+    
+    // Initialize event information
+    let title = firstLine; // Default to using the whole line as title
     let eventTime = null;
-    
-    // Check if first line contains time in format "HH:MM AM/PM - Title"
-    const titleTimeRegex = /^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?\s*-\s*(.+)/i;
-    const titleTimeMatch = firstLine.match(titleTimeRegex);
-    
-    if (titleTimeMatch) {
-      // Extract time from title
-      let hours = parseInt(titleTimeMatch[1]);
-      const minutes = parseInt(titleTimeMatch[2]);
-      const ampm = titleTimeMatch[3] ? titleTimeMatch[3].toUpperCase() : null;
-      
-      // Convert to 24-hour format if AM/PM is specified
-      if (ampm === 'PM' && hours < 12) {
-        hours += 12;
-      } else if (ampm === 'AM' && hours === 12) {
-        hours = 0;
-      }
-      
-      eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-      console.log(`Parsed time from title: ${hours}:${minutes} -> ${eventTime}`);
-      
-      // Set the real title (after the time)
-      title = titleTimeMatch[4].trim();
-    }
-    
-    // Initialize other event information
     let eventDate = null;
     let description = '';
+    
+    // DIRECT APPROACH: Split by hyphen
+    const parts = firstLine.split('-');
+    if (parts.length >= 2) {
+      const timePart = parts[0].trim();
+      const titlePart = parts.slice(1).join('-').trim(); // Handle multiple hyphens in title
+      
+      console.log('Split parts - Time:', timePart, 'Title:', titlePart);
+      
+      // Simple time regex
+      const timeRegex = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i;
+      const timeMatch = timePart.match(timeRegex);
+      
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+        
+        // Convert to 24-hour format if AM/PM is specified
+        if (ampm === 'PM' && hours < 12) {
+          hours += 12;
+        } else if (ampm === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+        console.log(`Parsed time from direct approach: ${hours}:${minutes} -> ${eventTime}`);
+        
+        // Use the part after the hyphen as the title
+        title = titlePart;
+        console.log('Using title from direct approach:', title);
+      }
+    }
     
     // PRIORITIZE dateInfo from Bluetooth device if available
     if (dateInfo) {
@@ -136,13 +145,16 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
       }
     }
     
-    // If we didn't find time in the title, look through other lines
+    // If direct approach didn't find a time, try the standard approach
     if (!eventTime) {
       const timeRegex = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i;
       
-      // Look through lines for time patterns
-      for (let i = 1; i < lines.length; i++) {
+      // Look through all lines for time patterns
+      for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
+        
+        // Skip the first line if we already tried to parse it
+        if (i === 0 && parts.length >= 2) continue;
         
         // Check for time
         const timeMatch = line.match(timeRegex);
@@ -159,16 +171,12 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
           }
           
           eventTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-          console.log(`Parsed time from text: ${hours}:${minutes} -> ${eventTime}`);
+          console.log(`Parsed time from backup approach: ${hours}:${minutes} -> ${eventTime}`);
           break;
         }
       }
     }
     
-    // // Create description from all non-title lines
-    // if (lines.length > 1) {
-    //   description = lines.slice(1).join('\n');
-    // }
     
     // Default to today if no date detected
     if (!eventDate) {
@@ -187,7 +195,8 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
     const startDateTime = new Date(`${eventDate}T${eventTime}`);
     const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Add 1 hour
     
-    return {
+    // Final event object
+    const eventObject = {
       summary: title,
       description: description,
       start: {
@@ -199,6 +208,11 @@ export const parseTextToEventDetails = (text, dateInfo = null) => {
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
       }
     };
+    
+    // Add final debug log to confirm what's being returned
+    console.log('Final event object:', JSON.stringify(eventObject, null, 2));
+    
+    return eventObject;
   } catch (err) {
     console.error('Error parsing text to event:', err);
     return null;
