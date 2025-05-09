@@ -1069,12 +1069,39 @@ const BluetoothPage = () => {
                 borderRadius: '8px',
                 marginBottom: '15px'
               }}>
-                <h3>Current Data</h3>
-                <p><strong>Last Message:</strong> {currentData || 'None'}</p>
-                <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
-                <p><strong>Session State:</strong> {sessionStateRef.current}</p>
-                <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
-              </div>
+                  <h3>Current Data</h3>
+                  <p><strong>Last Message:</strong> {currentData || 'None'}</p>
+                  <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
+                  <p><strong>Session State:</strong> {sessionStateRef.current}</p>
+                  <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
+  
+                  {/* New Event Parsing Debug Section */}
+                  {currentData && (
+                    <>
+                      <h4>Event Parsing Debug</h4>
+                      <pre style={{ 
+                        backgroundColor: '#ffffff', 
+                        padding: '10px', 
+                        borderRadius: '5px',
+                        border: '1px solid #ddd',
+                        overflow: 'auto',
+                        maxHeight: '300px',
+                        fontSize: '12px',
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {(() => {
+                          try {
+                            // Call your parsing function directly here for debugging
+                            const parsedEvent = parseTextToEventDetails(currentData, dateInfo);
+                            return JSON.stringify(parsedEvent, null, 2);
+                          } catch (err) {
+                            return `Error parsing event: ${err.message}`;
+                          }
+                        })()}
+      </pre>
+    </>
+  )}
+</div>
             </div>
           </div>
         </div>
