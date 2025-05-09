@@ -163,90 +163,6 @@ const canvasToBMP = (canvas) => {
   return new Blob([buffer], { type: 'image/bmp' });
 };
 
-
-export const connectToDevice = async () => {
-    try {
-      log('Requesting Bluetooth device...');
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [{ name: 'very cool calendar we made' }],
-        optionalServices: [CALENDAR_SERVICE_UUID]
-      });
-      
-      window.connectedDevice = device;
-      // setConnectedDevice(device);
-      setStatus('Connecting...');
-      log('Connecting to GATT server...');
-
-      // Connect to the GATT server
-      const server = await device.gatt.connect();
-      log('Connected to GATT server');
-
-      // Get the calendar service
-      const service = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
-      log('Found calendar service');
-
-      // Get the data characteristic
-      const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
-      log('Found data characteristic');
-
-      // Set up notifications instead of polling
-      await setupNotifications(characteristic);
-      setStatus('Connected - Listening for Notifications');
-
-      // Listen for disconnection events
-      device.addEventListener('gattserverdisconnected', handleDisconnection);
-    } catch (err) {
-      log(`Connection failed: ${err.message}`);
-      setStatus(`Connection failed: ${err.message}`);
-    }
-  };
-
-export const log = (msg) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const entry = `${timestamp} - ${msg}`;
-    setDebugLog((prev) => [entry, ...prev.slice(0, 20)]);
-    console.log('[Bluetooth]', msg);
-  };
-
-export const setupNotifications = async (characteristic) => {
-    dataCharRef.current = characteristic;
-    log('Starting notifications for data characteristic');
-  
-    try {
-      // Add event listener for notifications
-      characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
-      
-      // Request a faster connection interval if the device supports it
-      if (connectedDevice && connectedDevice.gatt) {
-        // This is optional and might not be supported by all devices
-        try {
-          await connectedDevice.gatt.requestConnectionPriorityChange('high');
-          log('Requested high priority connection');
-        } catch (e) {
-          log('Connection priority change not supported or failed');
-        }
-      }
-      
-      // Start notifications
-      await characteristic.startNotifications();
-      log('Notifications started successfully');
-    } catch (err) {
-      log(`Error setting up notifications: ${err.message}`);
-      setStatus(`Notification setup failed: ${err.message}`);
-    }
-  };
-
-export const handleDisconnection = () => {
-    setStatus('Disconnected');
-    window.connectedDevice = null;
-    // setConnectedDevice(null);
-    dataCharRef.current = null;
-    setCurrentData(null);
-    sessionStateRef.current = 'idle';
-    
-    log('Device disconnected');
-  };
-
 const BluetoothPage = () => {
   const [status, setStatus] = useState('Not Connected');
   const [connectedDevice, setConnectedDevice] = useState(null);
@@ -284,23 +200,23 @@ const BluetoothPage = () => {
   const coordinatesRef = useRef([]);
 
   // Helper for adding to debug log
-  // const log = (msg) => {
-  //   const timestamp = new Date().toLocaleTimeString();
-  //   const entry = `${timestamp} - ${msg}`;
-  //   setDebugLog((prev) => [entry, ...prev.slice(0, 20)]);
-  //   console.log('[Bluetooth]', msg);
-  // };
+  const log = (msg) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = `${timestamp} - ${msg}`;
+    setDebugLog((prev) => [entry, ...prev.slice(0, 20)]);
+    console.log('[Bluetooth]', msg);
+  };
 
   // Handle disconnection of device
-  // const handleDisconnection = () => {
-  //   setStatus('Disconnected');
-  //   setConnectedDevice(null);
-  //   dataCharRef.current = null;
-  //   setCurrentData(null);
-  //   sessionStateRef.current = 'idle';
+  const handleDisconnection = () => {
+    setStatus('Disconnected');
+    setConnectedDevice(null);
+    dataCharRef.current = null;
+    setCurrentData(null);
+    sessionStateRef.current = 'idle';
     
-  //   log('Device disconnected');
-  // };
+    log('Device disconnected');
+  };
 
   // Process data received from the BLE device
   const processData = (data) => {
@@ -402,71 +318,71 @@ const BluetoothPage = () => {
   };
 
   // Set up notifications for the characteristic
-  // const setupNotifications = async (characteristic) => {
-  //   dataCharRef.current = characteristic;
-  //   log('Starting notifications for data characteristic');
+  const setupNotifications = async (characteristic) => {
+    dataCharRef.current = characteristic;
+    log('Starting notifications for data characteristic');
   
-  //   try {
-  //     // Add event listener for notifications
-  //     characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+    try {
+      // Add event listener for notifications
+      characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
       
-  //     // Request a faster connection interval if the device supports it
-  //     if (connectedDevice && connectedDevice.gatt) {
-  //       // This is optional and might not be supported by all devices
-  //       try {
-  //         await connectedDevice.gatt.requestConnectionPriorityChange('high');
-  //         log('Requested high priority connection');
-  //       } catch (e) {
-  //         log('Connection priority change not supported or failed');
-  //       }
-  //     }
+      // Request a faster connection interval if the device supports it
+      if (connectedDevice && connectedDevice.gatt) {
+        // This is optional and might not be supported by all devices
+        try {
+          await connectedDevice.gatt.requestConnectionPriorityChange('high');
+          log('Requested high priority connection');
+        } catch (e) {
+          log('Connection priority change not supported or failed');
+        }
+      }
       
-  //     // Start notifications
-  //     await characteristic.startNotifications();
-  //     log('Notifications started successfully');
-  //   } catch (err) {
-  //     log(`Error setting up notifications: ${err.message}`);
-  //     setStatus(`Notification setup failed: ${err.message}`);
-  //   }
-  // };
+      // Start notifications
+      await characteristic.startNotifications();
+      log('Notifications started successfully');
+    } catch (err) {
+      log(`Error setting up notifications: ${err.message}`);
+      setStatus(`Notification setup failed: ${err.message}`);
+    }
+  };
 
   
   // Connect to the Adafruit device
-  // const connectToDevice = async () => {
-  //   try {
-  //     log('Requesting Bluetooth device...');
-  //     const device = await navigator.bluetooth.requestDevice({
-  //       filters: [{ name: 'very cool calendar we made' }],
-  //       optionalServices: [CALENDAR_SERVICE_UUID]
-  //     });
+  const connectToDevice = async () => {
+    try {
+      log('Requesting Bluetooth device...');
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ name: 'very cool calendar we made' }],
+        optionalServices: [CALENDAR_SERVICE_UUID]
+      });
       
-  //     setConnectedDevice(device);
-  //     setStatus('Connecting...');
-  //     log('Connecting to GATT server...');
+      setConnectedDevice(device);
+      setStatus('Connecting...');
+      log('Connecting to GATT server...');
 
-  //     // Connect to the GATT server
-  //     const server = await device.gatt.connect();
-  //     log('Connected to GATT server');
+      // Connect to the GATT server
+      const server = await device.gatt.connect();
+      log('Connected to GATT server');
 
-  //     // Get the calendar service
-  //     const service = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
-  //     log('Found calendar service');
+      // Get the calendar service
+      const service = await server.getPrimaryService(CALENDAR_SERVICE_UUID);
+      log('Found calendar service');
 
-  //     // Get the data characteristic
-  //     const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
-  //     log('Found data characteristic');
+      // Get the data characteristic
+      const characteristic = await service.getCharacteristic(CALENDAR_DATA_CHAR_UUID);
+      log('Found data characteristic');
 
-  //     // Set up notifications instead of polling
-  //     await setupNotifications(characteristic);
-  //     setStatus('Connected - Listening for Notifications');
+      // Set up notifications instead of polling
+      await setupNotifications(characteristic);
+      setStatus('Connected - Listening for Notifications');
 
-  //     // Listen for disconnection events
-  //     device.addEventListener('gattserverdisconnected', handleDisconnection);
-  //   } catch (err) {
-  //     log(`Connection failed: ${err.message}`);
-  //     setStatus(`Connection failed: ${err.message}`);
-  //   }
-  // };
+      // Listen for disconnection events
+      device.addEventListener('gattserverdisconnected', handleDisconnection);
+    } catch (err) {
+      log(`Connection failed: ${err.message}`);
+      setStatus(`Connection failed: ${err.message}`);
+    }
+  };
 
   
   // Add a new function to force update the canvas with direct coordinates
@@ -1094,148 +1010,167 @@ const BluetoothPage = () => {
 
   // Render the UI
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Bluetooth Calendar with Vision API</h2>
-      <p><strong>Status:</strong> {status}</p>
-      
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <button 
-          onClick={connectToDevice}
-          disabled={connectedDevice !== null}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: connectedDevice ? '#cccccc' : '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: connectedDevice ? 'default' : 'pointer'
-          }}
-        >
-          Connect to Calendar Device
-        </button>
+        <div>
+              <h1 style={{textAlign: 'center', marginTop:'30%'}}>Aetas Calendar</h1>
+    
+                      <div style={{textAlign: 'center', marginTop: '40%'}}>
+                          <button 
+                            onClick={connectToDevice}
+                            disabled={connectedDevice !== null}
+                            style={{
+                            border: '0.5px solid #1e1e1e', 
+                            backgroundColor: '#C5C5F1', 
+                            borderRadius: '30px', 
+                            width: '200px', 
+                            height: '75px',
+                            color: '#1e1e1e',
+                            fontSize: '20px'
+                          }}>Connect to Calendar</button>
+                      </div>  
+               
+      <div style={{ padding: '20px' }}>
+        <h2>Bluetooth Calendar with Vision API</h2>
+        <p><strong>Status:</strong> {status}</p>
         
-        <button 
-          onClick={sendToVisionAPI}
-          disabled={!bmpData || isSubmittingToVision}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: (!bmpData || isSubmittingToVision) ? '#cccccc' : '#2196F3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: (!bmpData || isSubmittingToVision) ? 'default' : 'pointer'
-          }}
-        >
-          {isSubmittingToVision ? 'Sending to Vision API...' : 'Send to Vision API'}
-        </button>
-      </div>
-      
-      {/* Vision API Status */}
-      {(
-        <div style={{ 
-          marginBottom: '20px',
-          padding: '10px',
-          backgroundColor: visionApiStatus.includes('Error') ? '#ffebee' : '#e3f2fd',
-          borderRadius: '4px',
-          maxWidth: '500px'
-        }}>
-          <strong>Vision API Status:</strong> {visionApiStatus}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <button 
+            onClick={connectToDevice}
+            disabled={connectedDevice !== null}
+            style={{ 
+              padding: '8px 16px',
+              backgroundColor: connectedDevice ? '#cccccc' : '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: connectedDevice ? 'default' : 'pointer'
+            }}
+          >
+            Connect to Calendar Device
+          </button>
+          
+          <button 
+            onClick={sendToVisionAPI}
+            disabled={!bmpData || isSubmittingToVision}
+            style={{ 
+              padding: '8px 16px',
+              backgroundColor: (!bmpData || isSubmittingToVision) ? '#cccccc' : '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: (!bmpData || isSubmittingToVision) ? 'default' : 'pointer'
+            }}
+          >
+            {isSubmittingToVision ? 'Sending to Vision API...' : 'Send to Vision API'}
+          </button>
         </div>
-      )}
+        
+        {/* Vision API Status */}
+        {(
+          <div style={{ 
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: visionApiStatus.includes('Error') ? '#ffebee' : '#e3f2fd',
+            borderRadius: '4px',
+            maxWidth: '500px'
+          }}>
+            <strong>Vision API Status:</strong> {visionApiStatus}
+          </div>
+        )}
 
-      {/* Data Display Section */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-        {/* Left Column - Status and Data */}
-        <div style={{ flex: '1 1 400px' }}>
-          <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-              {/* Current Info Panel */}
-              <div style={{ 
-                flex: '1 1 300px',  
-                padding: '15px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '8px',
-                marginBottom: '15px'
-              }}>
-                  <h3>Current Data</h3>
-                  <p><strong>Last Message:</strong> {currentData || 'None'}</p>
-                  <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
-                  <p><strong>Session State:</strong> {sessionStateRef.current}</p>
-                  <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
-  
-                  {/* New Event Parsing Debug Section */}
-                  {currentData && detectedText && (
-                    <>
-                      <h4>Event Parsing Debug</h4>
-                      <pre style={{ 
-                        backgroundColor: '#ffffff', 
-                        padding: '10px', 
-                        borderRadius: '5px',
-                        border: '1px solid #ddd',
-                        overflow: 'auto',
-                        maxHeight: '300px',
-                        fontSize: '12px',
-                        whiteSpace: 'pre-wrap'
-                      }}>
-                        {(() => {
-                          try {
-                            // Call your parsing function directly here for debugging
-                            const parsedEvent = parseTextToEventDetails(detectedText, dateInfo);
-                            return JSON.stringify(parsedEvent, null, 2);
-                          } catch (err) {
-                            return `Error parsing event: ${err.message}`;
-                          }
-                        })()}
-      </pre>
-    </>
-  )}
-</div>
+        {/* Data Display Section */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+          {/* Left Column - Status and Data */}
+          <div style={{ flex: '1 1 400px' }}>
+            <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+                {/* Current Info Panel */}
+                <div style={{ 
+                  flex: '1 1 300px',  
+                  padding: '15px',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                    <h3>Current Data</h3>
+                    <p><strong>Last Message:</strong> {currentData || 'None'}</p>
+                    <p><strong>Date:</strong> {dateInfo || 'Not set'}</p>
+                    <p><strong>Session State:</strong> {sessionStateRef.current}</p>
+                    <p><strong>Coordinates:</strong> {formatCoordinateData(coordinates)}</p>
+    
+                    {/* New Event Parsing Debug Section */}
+                    {currentData && detectedText && (
+                      <>
+                        <h4>Event Parsing Debug</h4>
+                        <pre style={{ 
+                          backgroundColor: '#ffffff', 
+                          padding: '10px', 
+                          borderRadius: '5px',
+                          border: '1px solid #ddd',
+                          overflow: 'auto',
+                          maxHeight: '300px',
+                          fontSize: '12px',
+                          whiteSpace: 'pre-wrap'
+                        }}>
+                          {(() => {
+                            try {
+                              // Call your parsing function directly here for debugging
+                              const parsedEvent = parseTextToEventDetails(detectedText, dateInfo);
+                              return JSON.stringify(parsedEvent, null, 2);
+                            } catch (err) {
+                              return `Error parsing event: ${err.message}`;
+                            }
+                          })()}
+        </pre>
+      </>
+    )}
+  </div>
+              </div>
             </div>
+          </div>
+
+          {/* Right Column - Canvas Preview and BMP Data */}
+          <div style={{ 
+            flex: '1 1 300px', 
+            padding: '15px',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '8px',
+            marginBottom: '15px'
+          }}>
+            <h3>Preview Image</h3>
+            {canvasPreview ? (
+              <div style={{ border: '1px solid #ddd', background: '#fff', padding: '5px' }}>
+                <img 
+                  src={canvasPreview} 
+                  alt="Drawing Preview" 
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '400px',
+                    display: 'block'
+                  }} 
+                />
+              </div>
+            ) : (
+              <div style={{ 
+                border: '1px solid #ddd', 
+                background: '#fff', 
+                padding: '20px',
+                textAlign: 'center',
+                color: '#999'
+              }}>
+                {coordinates.length > 0 ? 
+                  "Preview loading..." : 
+                  "No coordinates available to display preview"}
+              </div>
+            )}
+            
+            {/* Vision API Results */}
+            {renderVisionResults()}
           </div>
         </div>
 
-        {/* Right Column - Canvas Preview and BMP Data */}
-        <div style={{ 
-          flex: '1 1 300px', 
-          padding: '15px',
-          backgroundColor: '#f5f5f5',
-          borderRadius: '8px',
-          marginBottom: '15px'
-        }}>
-          <h3>Preview Image</h3>
-          {canvasPreview ? (
-            <div style={{ border: '1px solid #ddd', background: '#fff', padding: '5px' }}>
-              <img 
-                src={canvasPreview} 
-                alt="Drawing Preview" 
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: '400px',
-                  display: 'block'
-                }} 
-              />
-            </div>
-          ) : (
-            <div style={{ 
-              border: '1px solid #ddd', 
-              background: '#fff', 
-              padding: '20px',
-              textAlign: 'center',
-              color: '#999'
-            }}>
-              {coordinates.length > 0 ? 
-                "Preview loading..." : 
-                "No coordinates available to display preview"}
-            </div>
-          )}
-          
-          {/* Vision API Results */}
-          {renderVisionResults()}
-        </div>
+        {/* Event Creation Section - Only show when text is detected */}
+        {detectedText && renderEventCreationSection()}
       </div>
-
-      {/* Event Creation Section - Only show when text is detected */}
-      {detectedText && renderEventCreationSection()}
     </div>
   );
 };
