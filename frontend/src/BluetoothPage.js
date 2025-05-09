@@ -719,7 +719,7 @@ const BluetoothPage = () => {
     );
   };
 
-  // Render the UI yuh
+  // Render the UI
   return (
     <div style={{ padding: '20px' }}>
       <h2>Bluetooth Calendar with Vision API</h2>
