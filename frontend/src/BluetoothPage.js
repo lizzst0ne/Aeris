@@ -1156,5 +1156,6 @@ const BluetoothPage = () => {
   );
 };
 
+
+export {connectToDevice, connectedDevice};
 export default BluetoothPage;
-export { connectToDevice, connectedDevice };
