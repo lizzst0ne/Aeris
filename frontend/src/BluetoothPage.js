@@ -208,8 +208,7 @@ const processData = (data) => {
     sessionStateRef.current = 'waiting_for_date';
     log(`Data collection stopped: ${data}`);
     log(`Total coordinates received: ${coordinates.length}`);
-    // Force a preview update when we stop collecting
-    setTimeout(() => updateCanvasPreview(), 100);
+    
     return;
   }
   
@@ -226,8 +225,6 @@ const processData = (data) => {
     sessionStateRef.current = 'completed';
     log(`Session completed: ${data}`);
     log(`Final coordinates count: ${coordinates.length}`);
-    // Generate preview when session is completed
-    setTimeout(() => updateCanvasPreview(), 100);
     return;
   }
   
@@ -248,16 +245,7 @@ const processData = (data) => {
         
         setCoordinates(prev => {
           const newCoords = [...prev, { x, y }];
-          
-          // Log coordinate info periodically
-          if (newCoords.length % 5 === 0) {
-            log(`Total coordinates: ${newCoords.length}, Latest: (${x},${y})`);
-          }
-          
-          // If we've collected enough new points, update the preview
-          if (newCoords.length % 10 === 0 || newCoords.length === 1) {
-            setTimeout(() => updateCanvasPreview(), 50);
-          }
+        
           return newCoords;
         });
       } else {
@@ -717,7 +705,7 @@ const sendToVisionAPI = async () => {
         </div>
       </div>
       
-      {/* Debug Log Section */}
+      {/* Debug Log Section
       <div style={{ marginTop: '30px' }}>
         <h3>Debug Console</h3>
         <pre style={{ 
@@ -733,7 +721,7 @@ const sendToVisionAPI = async () => {
             debugLog.map((line, i) => <div key={i}>{line}</div>) : 
             "No debug logs yet"}
         </pre>
-      </div>
+      </div> */}
     </div>
   );
 };
