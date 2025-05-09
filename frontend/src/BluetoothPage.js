@@ -208,7 +208,9 @@ const processData = (data) => {
     sessionStateRef.current = 'waiting_for_date';
     log(`Data collection stopped: ${data}`);
     log(`Total coordinates received: ${coordinates.length}`);
-    updateCanvasPreview()
+    
+    // Automatically update the canvas preview when STOP is received
+    updateCanvasPreview();
     return;
   }
   
