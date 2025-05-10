@@ -861,7 +861,8 @@ void whatsTheDate(){
         display.print("Battery: ");
 
         if(batteryPercent >= 100){
-          display.println(100);
+          display.print(100);
+          display.println("%  ");
         }
         else{
           display.print(int(batteryPercent));
